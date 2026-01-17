@@ -23,15 +23,17 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            width: 100vw;
         }
 
         #game-container {
             position: relative;
             box-shadow: 0 0 40px rgba(0,0,0,0.8);
-            width: 950px; 
-            height: 850px; 
+            /* Dimensions are handled by Phaser Scale.FIT */
             background: rgba(0, 0, 0, 0.9);
             border: 2px solid #333;
+            max-width: 100%;
+            max-height: 100%;
         }
 
         /* UI Overlays */
@@ -178,7 +180,6 @@
             transform: scale(1.1);
         }
 
-        /* Settings CSS */
         #settings-panel {
             background: rgba(20, 20, 20, 0.95);
             border: 1px solid #00bcd4;
@@ -192,6 +193,14 @@
             accent-color: #00bcd4;
             cursor: pointer;
         }
+
+        #boost-indicator {
+            margin-top: 5px;
+            font-size: 10px;
+            color: #ffeb3b;
+            text-shadow: 0 0 5px rgba(255, 235, 59, 0.5);
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -202,7 +211,10 @@
         <div id="loading-msg">Initializing Components...</div>
         
         <div id="hud" class="hidden">
-            <div id="lap-counter" class="stat-box">LAP: 1/3</div>
+            <div>
+                <div id="lap-counter" class="stat-box">LAP: 1/3</div>
+                <div id="boost-indicator">SHIFT BOOST READY</div>
+            </div>
             <button id="btn-quit" class="btn-danger">QUIT</button>
         </div>
     </div>
@@ -261,14 +273,11 @@
         // --- STATE ---
         const LAPS_TO_WIN = 3;
 
-        // Robust Volume Initialization to avoid NaN/non-finite errors
         let savedVol = localStorage.getItem('neon-volume');
         let initialVolume = 0.1;
         if (savedVol !== null) {
             let parsed = parseFloat(savedVol);
-            if (!isNaN(parsed) && isFinite(parsed)) {
-                initialVolume = parsed;
-            }
+            if (!isNaN(parsed) && isFinite(parsed)) initialVolume = parsed;
         }
 
         const Net = {
@@ -361,9 +370,7 @@
                             this.events.emit('start-game');
                             break;
                         case 'GAME_UPDATE':
-                            if (Net.players[senderId]) {
-                                Object.assign(Net.players[senderId], data);
-                            }
+                            if (Net.players[senderId]) Object.assign(Net.players[senderId], data);
                             break;
                         case 'RACE_FINISHED':
                             this.events.emit('race-finished', data.winnerId);
@@ -425,7 +432,6 @@
                     Net.ready = true;
                     Net.gameOver = false;
                     
-                    // Final sanity check for volume value
                     const safeVolume = (isNaN(Net.volume) || !isFinite(Net.volume)) ? 0.1 : Net.volume;
                     this.sound.volume = safeVolume;
 
@@ -475,7 +481,6 @@
                         <div id="status-msg" style="margin-top:15px; font-size:11px; color:#00bcd4;">Connecting...</div>
                     `;
 
-                    // Listeners
                     const volSlider = document.getElementById('vol-slider');
                     volSlider.oninput = (e) => {
                         let newVol = parseFloat(e.target.value);
@@ -595,7 +600,11 @@
                     document.getElementById('btn-quit').onclick = () => window.location.reload();
 
                     // Track
-                    this.add.image(0, 0, 'track_img').setOrigin(0);
+                    this.track = this.add.image(0, 0, 'track_img').setOrigin(0);
+                    
+                    // Camera Setup: Zoom in 70% (Factor 1.7)
+                    this.cameras.main.setZoom(1.7);
+                    this.cameras.main.setBounds(0, 0, this.track.width, this.track.height);
 
                     // Physics Walls
                     this.matter.add.fromVertices(524, 496, [
@@ -617,7 +626,7 @@
 
                     this.checkpointLine = this.add.rectangle(520, 230, 10, 60, 0x00bcd4, 0.3);
 
-                    // Grid Spawning
+                    // Spawning
                     const allIds = Object.keys(Net.players).sort();
                     allIds.forEach((id, index) => {
                         const p = Net.players[id];
@@ -626,12 +635,15 @@
                         p.angle = 0; 
                     });
 
-                    this.playerData = {}; // { body, visual, text }
+                    this.playerData = {}; 
                     Object.values(Net.players).forEach(p => this.spawn(p));
+
+                    // Follow the local player's visual sprite
+                    this.cameras.main.startFollow(this.playerData[Net.myId].visual, true, 0.1, 0.1);
 
                     this.keys = this.input.keyboard.addKeys({ 
                         up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', 
-                        w: 'W', a: 'A', s: 'S', d: 'D' 
+                        w: 'W', a: 'A', s: 'S', d: 'D', shift: 'SHIFT'
                     });
 
                     eventBus.on('player-left', (id) => {
@@ -648,16 +660,17 @@
                 }
 
                 spawn(p) {
-                    // Hidden Physics Body
+                    // Start heading: 0 (Right)
                     const body = this.matter.add.rectangle(p.x, p.y, 25, 12, {
                         frictionAir: 0.08,
                         mass: 1,
                         restitution: 0.6,
+                        angularFriction: 0.1, // Added angular friction for drag on turning
                         label: p.id
                     });
-                    this.matter.body.setAngle(body, 0); // 0 rad is Right
+                    this.matter.body.setAngle(body, 0); 
 
-                    // Visual Component - This is NOT a matter object, prevented spin loop
+                    // Visual Component - Decoupled from physics body rotation
                     const visual = this.add.image(p.x, p.y, p.carType).setScale(0.4);
                     
                     const text = this.add.text(0, 0, p.name || p.id.substr(0,4), { 
@@ -673,31 +686,50 @@
                     const my = this.playerData[Net.myId];
                     if (my) {
                         const b = my.body;
-                        const thrustForce = 0.0035;
-                        const rotationSpeed = 0.09;
+                        
+                        // BASE SPEED REDUCTION (30% of original)
+                        let thrustForce = 0.0011;
+                        // TORQUE Logic: No instant turning
+                        const turnTorque = 0.0006; 
+
+                        // Last Place Boost Detection
+                        const allPlayers = Object.values(Net.players);
+                        let isLast = false;
+                        if (allPlayers.length > 1) {
+                            const minLaps = Math.min(...allPlayers.map(p => p.laps));
+                            if (Net.players[Net.myId].laps === minLaps) isLast = true;
+                        }
+
+                        const boostInd = document.getElementById('boost-indicator');
+                        if (isLast) {
+                            boostInd.style.display = 'block';
+                            if (this.keys.shift.isDown) thrustForce *= 1.05; 
+                        } else {
+                            boostInd.style.display = 'none';
+                        }
 
                         let isThrottling = false;
 
+                        // Thrust Relative to current Angle
                         if (this.keys.up.isDown || this.keys.w.isDown) {
                             isThrottling = true;
-                            const angle = b.angle;
                             this.matter.applyForce(b, {
-                                x: Math.cos(angle) * thrustForce,
-                                y: Math.sin(angle) * thrustForce
+                                x: Math.cos(b.angle) * thrustForce,
+                                y: Math.sin(b.angle) * thrustForce
                             });
                         } else if (this.keys.down.isDown || this.keys.s.isDown) {
                             isThrottling = true;
-                            const angle = b.angle;
                             this.matter.applyForce(b, {
-                                x: -Math.cos(angle) * (thrustForce / 2),
-                                y: -Math.sin(angle) * (thrustForce / 2)
+                                x: -Math.cos(b.angle) * (thrustForce / 2),
+                                y: -Math.sin(b.angle) * (thrustForce / 2)
                             });
                         }
                         
+                        // Drag Steering: Use torque instead of instant setAngle
                         if (this.keys.left.isDown || this.keys.a.isDown) {
-                            this.matter.body.setAngle(b, b.angle - rotationSpeed);
+                            b.torque = -turnTorque;
                         } else if (this.keys.right.isDown || this.keys.d.isDown) {
-                            this.matter.body.setAngle(b, b.angle + rotationSpeed);
+                            b.torque = turnTorque;
                         }
 
                         // SFX Logic
@@ -728,7 +760,6 @@
                             }
                         }
 
-                        // Broadcast raw physics state
                         network.broadcast({ 
                             type: 'GAME_UPDATE', x: b.position.x, y: b.position.y, angle: b.angle, 
                             laps: this.myLaps, name: Net.playerName, carType: Net.carType
@@ -743,10 +774,8 @@
                             if (id !== Net.myId) {
                                 obj.visual.x = Phaser.Math.Linear(obj.visual.x, data.x, 0.2);
                                 obj.visual.y = Phaser.Math.Linear(obj.visual.y, data.y, 0.2);
-                                // Set visual orientation from synced physics angle + 90deg offset
                                 obj.visual.setAngle(Phaser.Math.RadToDeg(data.angle) + 90);
                             } else {
-                                // Local Sync
                                 obj.visual.x = obj.body.position.x;
                                 obj.visual.y = obj.body.position.y;
                                 obj.visual.setAngle(Phaser.Math.RadToDeg(obj.body.angle) + 90);
@@ -799,6 +828,10 @@
                 height: 850,
                 backgroundColor: '#0a0a0a',
                 parent: 'game-container',
+                scale: {
+                    mode: Phaser.Scale.FIT,
+                    autoCenter: Phaser.Scale.CENTER_BOTH
+                },
                 physics: { 
                     default: 'matter', 
                     matter: { 
