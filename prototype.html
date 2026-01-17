@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phaser 3 P2P Racer - Arcade Edition</title>
+    <title>Phaser 3 P2P Racer - Matter.js Arcade Edition</title>
     
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
@@ -133,7 +133,7 @@
     <div id="error-log"></div>
     
     <div id="game-container">
-        <div id="loading-msg">Warming up engines...</div>
+        <div id="loading-msg">Engaging Matter Physics...</div>
         
         <div id="hud" class="hidden">
             <div id="lap-counter" class="stat-box">LAP: 1/3</div>
@@ -149,20 +149,14 @@
 
     <script>
         // --- CLIPBOARD HELPER ---
-        // navigator.clipboard.writeText often fails in sandboxed iframes.
-        // Using document.execCommand('copy') as a robust fallback.
         window.copyToClipboard = (text) => {
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            textArea.style.position = "fixed";  // Avoid scrolling to bottom
+            textArea.style.position = "fixed";
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            try {
-                document.execCommand('copy');
-            } catch (err) {
-                console.error('Unable to copy', err);
-            }
+            try { document.execCommand('copy'); } catch (err) { console.error('Copy failed', err); }
             document.body.removeChild(textArea);
         };
 
@@ -173,7 +167,7 @@
         const Net = {
             peer: null,
             myId: null,
-            creatorId: null, // The original host
+            creatorId: null,
             playerName: localStorage.getItem('p2p-racer-name') || "Racer_" + Math.floor(Math.random()*999),
             connections: {},
             players: {},
@@ -209,6 +203,7 @@
                     Net.peer = new Peer(null, { debug: 1 });
                     Net.peer.on('open', (id) => {
                         Net.myId = id;
+                        // Initial values; will be overridden by GameScene start positions
                         Net.players[id] = { id, name: Net.playerName, x: 100, y: 450, angle: 0, color: COLORS[0], laps: 0 };
                         this.events.emit('net-ready', id);
                     });
@@ -217,7 +212,7 @@
 
                 connectToPeer(hostId) {
                     if(!Net.peer || hostId === Net.myId) return;
-                    Net.creatorId = hostId; // We are joining this person
+                    Net.creatorId = hostId;
                     const conn = Net.peer.connect(hostId);
                     this.handleConnection(conn);
                 }
@@ -225,19 +220,10 @@
                 handleConnection(conn) {
                     conn.on('open', () => {
                         Net.connections[conn.peer] = conn;
-                        
-                        // Handshake
-                        conn.send({ 
-                            type: 'HELLO', 
-                            player: Net.players[Net.myId],
-                            creatorId: Net.creatorId 
-                        });
-
-                        // Mesh building
+                        conn.send({ type: 'HELLO', player: Net.players[Net.myId], creatorId: Net.creatorId });
                         if (Object.keys(Net.players).length > 1) {
                             conn.send({ type: 'PEER_LIST', list: Object.keys(Net.players), creatorId: Net.creatorId });
                         }
-                        
                         this.updateHostStatus();
                         this.events.emit('player-joined', conn.peer);
                     });
@@ -291,13 +277,9 @@
 
                 updateHostStatus() {
                     const allIds = Object.keys(Net.players).sort();
-                    
-                    // If the creator is still here, they are host.
-                    // If not, migrate to the lowest ID.
                     if (Net.creatorId && Net.players[Net.creatorId]) {
                         Net.isHost = (Net.myId === Net.creatorId);
                     } else {
-                        // Migration
                         const newHostId = allIds[0];
                         if (Net.creatorId !== newHostId) {
                             Net.creatorId = newHostId;
@@ -317,9 +299,9 @@
                 constructor() { super('Menu'); }
                 preload() {
                     const g = this.make.graphics({x: 0, y: 0, add: false});
-                    g.fillStyle(0xffffff).fillRect(0, 0, 24, 14); 
-                    g.fillStyle(0x000000).fillRect(18, 2, 4, 10); 
-                    g.generateTexture('car', 24, 14);
+                    g.fillStyle(0xffffff).fillRect(0, 0, 32, 18); 
+                    g.fillStyle(0x000000).fillRect(24, 4, 6, 10); 
+                    g.generateTexture('car', 32, 18);
 
                     const fl = this.make.graphics({x: 0, y: 0, add: false});
                     fl.fillStyle(0xffffff).fillRect(0,0,16,16).fillRect(16,16,16,16);
@@ -355,7 +337,7 @@
                     });
 
                     document.getElementById('btn-create').onclick = () => {
-                        Net.creatorId = Net.myId; // I am the host
+                        Net.creatorId = Net.myId;
                         this.proceed('Lobby');
                     };
                     document.getElementById('btn-join').onclick = () => {
@@ -442,21 +424,33 @@
                     this.add.rectangle(400, 300, 800, 600, 0x1a1a1a); 
                     this.add.grid(400, 300, 800, 600, 64, 64, 0x222222, 0.5);
                     
-                    const island = this.add.rectangle(400, 300, 400, 200, 0x000000);
-                    this.physics.add.existing(island, true);
+                    // Central Island
+                    const island = this.matter.add.rectangle(400, 300, 400, 200, { isStatic: true, render: { fillColor: 0x000000 } });
+                    this.add.rectangle(400, 300, 400, 200, 0x000000);
 
-                    const walls = this.physics.add.staticGroup();
-                    walls.add(this.add.rectangle(400, 5, 800, 10, 0x333333)); 
-                    walls.add(this.add.rectangle(400, 595, 800, 10, 0x333333)); 
-                    walls.add(this.add.rectangle(5, 300, 10, 600, 0x333333)); 
-                    walls.add(this.add.rectangle(795, 300, 10, 600, 0x333333)); 
+                    // Outer Walls
+                    this.matter.add.rectangle(400, 5, 800, 10, { isStatic: true }); 
+                    this.matter.add.rectangle(400, 595, 800, 10, { isStatic: true }); 
+                    this.matter.add.rectangle(5, 300, 10, 600, { isStatic: true }); 
+                    this.matter.add.rectangle(795, 300, 10, 600, { isStatic: true }); 
                     
                     // Finish Line
                     this.add.tileSprite(150, 450, 20, 140, 'finish_pattern').setAlpha(0.6);
                     this.add.text(150, 370, "START/FINISH", { fontSize: '10px', color: '#fff' }).setOrigin(0.5);
 
-                    // Checkpoint line
+                    // Checkpoint line (Visual only)
                     this.checkpointLine = this.add.rectangle(650, 150, 10, 140, 0x00bcd4, 0.3);
+
+                    // --- GRID SPAWN LOGIC ---
+                    // Sort IDs to ensure consistent slot assignment for all peers
+                    const allIds = Object.keys(Net.players).sort();
+                    allIds.forEach((id, index) => {
+                        const p = Net.players[id];
+                        // Distribute players along the y-axis at the starting x coordinate
+                        p.x = 80; 
+                        p.y = 400 + (index * 40); 
+                        p.angle = 0;
+                    });
 
                     this.playerSprites = {};
                     Object.values(Net.players).forEach(p => this.spawn(p));
@@ -473,20 +467,17 @@
 
                     eventBus.on('race-finished', (winnerId) => this.showResult(winnerId));
                     eventBus.on('reset-to-lobby', () => this.scene.start('Lobby'));
-
-                    Object.values(this.playerSprites).forEach(obj => {
-                        this.physics.add.collider(obj.sprite, island);
-                        this.physics.add.collider(obj.sprite, walls);
-                    });
                 }
 
                 spawn(p) {
-                    const sprite = this.physics.add.image(100 + (Math.random()*50), 400 + (Math.random()*100), 'car')
-                        .setTint(p.color)
-                        .setDrag(0.94)
-                        .setAngularDrag(0.9)
-                        .setDamping(true)
-                        .setCollideWorldBounds(true);
+                    // Matter Body setup
+                    // Use assigned coordinates to avoid overlapping "explosions"
+                    const sprite = this.matter.add.image(p.x, p.y, 'car');
+                    sprite.setFrictionAir(0.05);
+                    sprite.setMass(1);
+                    sprite.setFixedRotation(); // Arcade style rotation
+                    sprite.setTint(p.color);
+                    sprite.setAngle(p.angle);
                     
                     const text = this.add.text(0, 0, p.name || p.id.substr(0,4), { 
                         fontSize: '11px', fontStyle: 'bold', fill: '#fff',
@@ -501,20 +492,22 @@
                     const my = this.playerSprites[Net.myId];
                     if (my) {
                         const s = my.sprite;
-                        const acceleration = 550;
-                        const turnSpeed = 230;
+                        
+                        // Handle Input using Forces (Matter.js)
+                        const thrustForce = 0.003;
+                        const rotationSpeed = 0.08;
 
                         if (this.keys.up.isDown || this.keys.w.isDown) {
-                            this.physics.velocityFromRotation(s.rotation, acceleration, s.body.acceleration);
+                            s.thrust(thrustForce);
                         } else if (this.keys.down.isDown || this.keys.s.isDown) {
-                            this.physics.velocityFromRotation(s.rotation, -acceleration/2, s.body.acceleration);
-                        } else {
-                            s.setAcceleration(0);
+                            s.thrust(-thrustForce / 2);
                         }
                         
-                        if (this.keys.left.isDown || this.keys.a.isDown) s.setAngularVelocity(-turnSpeed);
-                        else if (this.keys.right.isDown || this.keys.d.isDown) s.setAngularVelocity(turnSpeed);
-                        else s.setAngularVelocity(0);
+                        if (this.keys.left.isDown || this.keys.a.isDown) {
+                            s.setRotation(s.rotation - rotationSpeed);
+                        } else if (this.keys.right.isDown || this.keys.d.isDown) {
+                            s.setRotation(s.rotation + rotationSpeed);
+                        }
 
                         // Checkpoint Top-Right
                         if (!this.hasReachedCheckpoint && s.x > 550 && s.y < 300) {
@@ -541,17 +534,19 @@
                         });
                     }
 
+                    // Sync remote players
                     Object.keys(Net.players).forEach(id => {
                         const obj = this.playerSprites[id];
                         if (obj) {
                             if (id !== Net.myId) {
                                 const d = Net.players[id];
-                                obj.sprite.x = Phaser.Math.Linear(obj.sprite.x, d.x, 0.25);
-                                obj.sprite.y = Phaser.Math.Linear(obj.sprite.y, d.y, 0.25);
+                                // Use direct positioning for remote players to avoid Matter force conflicts
+                                obj.sprite.x = Phaser.Math.Linear(obj.sprite.x, d.x, 0.2);
+                                obj.sprite.y = Phaser.Math.Linear(obj.sprite.y, d.y, 0.2);
                                 obj.sprite.angle = d.angle;
                                 obj.text.setText(d.name || id.substr(0,4));
                             }
-                            obj.text.setPosition(obj.sprite.x, obj.sprite.y - 22);
+                            obj.text.setPosition(obj.sprite.x, obj.sprite.y - 25);
                         }
                     });
                 }
@@ -594,7 +589,13 @@
                 height: 600,
                 backgroundColor: '#0a0a0a',
                 parent: 'game-container',
-                physics: { default: 'arcade', arcade: { debug: false } },
+                physics: { 
+                    default: 'matter', 
+                    matter: { 
+                        gravity: { x: 0, y: 0 },
+                        debug: false 
+                    } 
+                },
                 scene: [MenuScene, LobbyScene, GameScene]
             };
             new Phaser.Game(config);
