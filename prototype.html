@@ -119,6 +119,7 @@
         }
 
         button:hover { background: #00e5ff; transform: scale(1.05); }
+        .btn-secondary { background: #444; color: white; margin-top: 10px; }
         .btn-danger { background: #f44336; color: white; }
         .btn-danger:hover { background: #ff5252; }
         
@@ -147,6 +148,24 @@
     </div>
 
     <script>
+        // --- CLIPBOARD HELPER ---
+        // navigator.clipboard.writeText often fails in sandboxed iframes.
+        // Using document.execCommand('copy') as a robust fallback.
+        window.copyToClipboard = (text) => {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";  // Avoid scrolling to bottom
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Unable to copy', err);
+            }
+            document.body.removeChild(textArea);
+        };
+
         // --- CONSTANTS & STATE ---
         const LAPS_TO_WIN = 3;
         const COLORS = [0x00bcd4, 0x4caf50, 0xff9800, 0xe91e63, 0x9c27b0, 0xffeb3b];
@@ -154,6 +173,7 @@
         const Net = {
             peer: null,
             myId: null,
+            creatorId: null, // The original host
             playerName: localStorage.getItem('p2p-racer-name') || "Racer_" + Math.floor(Math.random()*999),
             connections: {},
             players: {},
@@ -190,7 +210,6 @@
                     Net.peer.on('open', (id) => {
                         Net.myId = id;
                         Net.players[id] = { id, name: Net.playerName, x: 100, y: 450, angle: 0, color: COLORS[0], laps: 0 };
-                        this.updateHostStatus();
                         this.events.emit('net-ready', id);
                     });
                     Net.peer.on('connection', (conn) => this.handleConnection(conn));
@@ -198,6 +217,7 @@
 
                 connectToPeer(hostId) {
                     if(!Net.peer || hostId === Net.myId) return;
+                    Net.creatorId = hostId; // We are joining this person
                     const conn = Net.peer.connect(hostId);
                     this.handleConnection(conn);
                 }
@@ -205,20 +225,31 @@
                 handleConnection(conn) {
                     conn.on('open', () => {
                         Net.connections[conn.peer] = conn;
-                        conn.send({ type: 'HELLO', player: Net.players[Net.myId] });
+                        
+                        // Handshake
+                        conn.send({ 
+                            type: 'HELLO', 
+                            player: Net.players[Net.myId],
+                            creatorId: Net.creatorId 
+                        });
+
+                        // Mesh building
                         if (Object.keys(Net.players).length > 1) {
-                            conn.send({ type: 'PEER_LIST', list: Object.keys(Net.players) });
+                            conn.send({ type: 'PEER_LIST', list: Object.keys(Net.players), creatorId: Net.creatorId });
                         }
+                        
                         this.updateHostStatus();
                         this.events.emit('player-joined', conn.peer);
                     });
                     conn.on('data', (data) => this.handleData(conn.peer, data));
                     conn.on('close', () => this.removePlayer(conn.peer));
+                    conn.on('error', () => this.removePlayer(conn.peer));
                 }
 
                 handleData(senderId, data) {
                     switch(data.type) {
                         case 'HELLO':
+                            if (data.creatorId && !Net.creatorId) Net.creatorId = data.creatorId;
                             if (!Net.players[senderId]) {
                                 const idx = Object.keys(Net.players).length;
                                 Net.players[senderId] = { ...data.player, color: COLORS[idx % COLORS.length] };
@@ -227,6 +258,7 @@
                             }
                             break;
                         case 'PEER_LIST':
+                            if (data.creatorId && !Net.creatorId) Net.creatorId = data.creatorId;
                             data.list.forEach(id => (id !== Net.myId && !Net.connections[id]) && this.connectToPeer(id));
                             break;
                         case 'START_GAME':
@@ -239,6 +271,9 @@
                             break;
                         case 'RACE_FINISHED':
                             this.events.emit('race-finished', data.winnerId);
+                            break;
+                        case 'RESET_TO_LOBBY':
+                            this.events.emit('reset-to-lobby');
                             break;
                     }
                 }
@@ -256,7 +291,20 @@
 
                 updateHostStatus() {
                     const allIds = Object.keys(Net.players).sort();
-                    Net.isHost = (Net.myId === allIds[0]);
+                    
+                    // If the creator is still here, they are host.
+                    // If not, migrate to the lowest ID.
+                    if (Net.creatorId && Net.players[Net.creatorId]) {
+                        Net.isHost = (Net.myId === Net.creatorId);
+                    } else {
+                        // Migration
+                        const newHostId = allIds[0];
+                        if (Net.creatorId !== newHostId) {
+                            Net.creatorId = newHostId;
+                            if (Net.myId === Net.creatorId) this.events.emit('becoming-host');
+                        }
+                        Net.isHost = (Net.myId === Net.creatorId);
+                    }
                     this.events.emit('player-updated');
                 }
             }
@@ -269,9 +317,14 @@
                 constructor() { super('Menu'); }
                 preload() {
                     const g = this.make.graphics({x: 0, y: 0, add: false});
-                    g.fillStyle(0xffffff).fillRect(0, 0, 24, 14); // Car body
-                    g.fillStyle(0x000000).fillRect(18, 2, 4, 10); // Windshield
+                    g.fillStyle(0xffffff).fillRect(0, 0, 24, 14); 
+                    g.fillStyle(0x000000).fillRect(18, 2, 4, 10); 
                     g.generateTexture('car', 24, 14);
+
+                    const fl = this.make.graphics({x: 0, y: 0, add: false});
+                    fl.fillStyle(0xffffff).fillRect(0,0,16,16).fillRect(16,16,16,16);
+                    fl.fillStyle(0x000000).fillRect(16,0,16,16).fillRect(0,16,16,16);
+                    fl.generateTexture('finish_pattern', 32, 32);
                 }
 
                 create() {
@@ -284,6 +337,7 @@
                     const ui = document.getElementById('ui-layer');
                     const content = document.getElementById('ui-content');
                     ui.classList.remove('hidden');
+                    document.getElementById('ui-title').innerText = "MICRO P2P RACER";
                     
                     content.innerHTML = `
                         <label>YOUR NAME</label>
@@ -300,7 +354,10 @@
                         if(msg) msg.innerText = "Network Ready: " + id;
                     });
 
-                    document.getElementById('btn-create').onclick = () => this.proceed('Lobby');
+                    document.getElementById('btn-create').onclick = () => {
+                        Net.creatorId = Net.myId; // I am the host
+                        this.proceed('Lobby');
+                    };
                     document.getElementById('btn-join').onclick = () => {
                         const room = document.getElementById('inp-room').value.trim();
                         if (room) { 
@@ -338,11 +395,11 @@
                 }
 
                 render(container) {
-                    const hostId = Object.keys(Net.players).sort()[0];
+                    const hostId = Net.creatorId;
                     let html = `<div style="margin-bottom:15px; background:#111; padding:12px; border-radius:4px; border:1px solid #333;">
                         <span style="color:#888; font-size:11px; letter-spacing:1px;">ROOM ID</span><br>
                         <b style="color:#00bcd4; font-size:18px;">${hostId || '...'}</b>
-                        <button onclick="navigator.clipboard.writeText('${hostId}')" style="padding:4px 8px; font-size:10px; margin-left:10px; background:#333; color:white;">COPY</button>
+                        <button onclick="window.copyToClipboard('${hostId}')" style="padding:4px 8px; font-size:10px; margin-left:10px; background:#333; color:white;">COPY</button>
                     </div><div style="text-align:left; background:#000; padding:10px; border-radius:4px;">`;
 
                     Object.values(Net.players).forEach(p => {
@@ -353,7 +410,7 @@
                     });
 
                     html += `</div>`;
-                    if (Net.myId === hostId) {
+                    if (Net.isHost) {
                         html += `<button id="btn-start" style="margin-top:20px; width:100%; background:#4CAF50; color:white;">START RACE</button>`;
                     } else {
                         html += `<div style="margin-top:20px; color:#666; font-style:italic;">Waiting for host...</div>`;
@@ -375,31 +432,30 @@
                 create() {
                     Net.gameOver = false;
                     this.myLaps = 0;
-                    this.hasReachedCheckpoint = false; // Prevents cheating
+                    this.hasReachedCheckpoint = false; 
 
                     document.getElementById('hud').classList.remove('hidden');
+                    document.getElementById('lap-counter').innerText = `LAP: 1/${LAPS_TO_WIN}`;
                     document.getElementById('btn-quit').onclick = () => window.location.reload();
 
-                    // Track Rendering (Loop)
-                    this.add.rectangle(400, 300, 800, 600, 0x1a1a1a); // Ground
+                    // Track Rendering
+                    this.add.rectangle(400, 300, 800, 600, 0x1a1a1a); 
                     this.add.grid(400, 300, 800, 600, 64, 64, 0x222222, 0.5);
                     
-                    // Central Island
                     const island = this.add.rectangle(400, 300, 400, 200, 0x000000);
                     this.physics.add.existing(island, true);
 
-                    // Outer Walls
                     const walls = this.physics.add.staticGroup();
-                    walls.add(this.add.rectangle(400, 5, 800, 10, 0x333333)); // Top
-                    walls.add(this.add.rectangle(400, 595, 800, 10, 0x333333)); // Bottom
-                    walls.add(this.add.rectangle(5, 300, 10, 600, 0x333333)); // Left
-                    walls.add(this.add.rectangle(795, 300, 10, 600, 0x333333)); // Right
+                    walls.add(this.add.rectangle(400, 5, 800, 10, 0x333333)); 
+                    walls.add(this.add.rectangle(400, 595, 800, 10, 0x333333)); 
+                    walls.add(this.add.rectangle(5, 300, 10, 600, 0x333333)); 
+                    walls.add(this.add.rectangle(795, 300, 10, 600, 0x333333)); 
                     
-                    // Finish Line (Start area)
-                    this.add.rectangle(150, 450, 10, 140, 0xffffff); // Start line
-                    this.add.text(145, 385, "START", { fontSize: '12px', color: '#fff' }).setOrigin(0.5);
+                    // Finish Line
+                    this.add.tileSprite(150, 450, 20, 140, 'finish_pattern').setAlpha(0.6);
+                    this.add.text(150, 370, "START/FINISH", { fontSize: '10px', color: '#fff' }).setOrigin(0.5);
 
-                    // Checkpoint line (opposite side)
+                    // Checkpoint line
                     this.checkpointLine = this.add.rectangle(650, 150, 10, 140, 0x00bcd4, 0.3);
 
                     this.playerSprites = {};
@@ -416,8 +472,8 @@
                     });
 
                     eventBus.on('race-finished', (winnerId) => this.showResult(winnerId));
+                    eventBus.on('reset-to-lobby', () => this.scene.start('Lobby'));
 
-                    // Collisions
                     Object.values(this.playerSprites).forEach(obj => {
                         this.physics.add.collider(obj.sprite, island);
                         this.physics.add.collider(obj.sprite, walls);
@@ -433,11 +489,8 @@
                         .setCollideWorldBounds(true);
                     
                     const text = this.add.text(0, 0, p.name || p.id.substr(0,4), { 
-                        fontSize: '12px', 
-                        fontStyle: 'bold', 
-                        fill: '#fff',
-                        backgroundColor: '#00000080',
-                        padding: { x: 4, y: 2 }
+                        fontSize: '11px', fontStyle: 'bold', fill: '#fff',
+                        backgroundColor: '#000000cc', padding: { x: 4, y: 2 }
                     }).setOrigin(0.5);
 
                     this.playerSprites[p.id] = { sprite, text };
@@ -448,10 +501,8 @@
                     const my = this.playerSprites[Net.myId];
                     if (my) {
                         const s = my.sprite;
-                        
-                        // Arcade Handling Logic
-                        const acceleration = 500;
-                        const turnSpeed = 220;
+                        const acceleration = 550;
+                        const turnSpeed = 230;
 
                         if (this.keys.up.isDown || this.keys.w.isDown) {
                             this.physics.velocityFromRotation(s.rotation, acceleration, s.body.acceleration);
@@ -465,14 +516,13 @@
                         else if (this.keys.right.isDown || this.keys.d.isDown) s.setAngularVelocity(turnSpeed);
                         else s.setAngularVelocity(0);
 
-                        // Loop & Checkpoint Logic
-                        // Checkpoint is at Top-Right
-                        if (!this.hasReachedCheckpoint && s.x > 600 && s.y < 300) {
+                        // Checkpoint Top-Right
+                        if (!this.hasReachedCheckpoint && s.x > 550 && s.y < 300) {
                             this.hasReachedCheckpoint = true;
                             this.checkpointLine.setFillStyle(0x00ff00, 0.5);
                         }
 
-                        // Finish Line is at Bottom-Left
+                        // Finish Bottom-Left
                         if (this.hasReachedCheckpoint && s.x < 150 && s.y > 350) {
                             this.myLaps++;
                             this.hasReachedCheckpoint = false;
@@ -487,16 +537,10 @@
                         }
 
                         network.broadcast({ 
-                            type: 'GAME_UPDATE', 
-                            x: s.x, 
-                            y: s.y, 
-                            angle: s.angle, 
-                            laps: this.myLaps,
-                            name: Net.playerName 
+                            type: 'GAME_UPDATE', x: s.x, y: s.y, angle: s.angle, laps: this.myLaps, name: Net.playerName 
                         });
                     }
 
-                    // Sync remote players
                     Object.keys(Net.players).forEach(id => {
                         const obj = this.playerSprites[id];
                         if (obj) {
@@ -519,18 +563,28 @@
                     const title = document.getElementById('ui-title');
                     
                     const isWinner = winnerId === Net.myId;
-                    title.innerText = isWinner ? "🏆 CHAMPION!" : "🏳️ FINISHED";
-                    title.style.color = isWinner ? "#FFD700" : "#ffffff";
+                    title.innerText = isWinner ? "🏆 VICTORY!" : "🏁 RACE OVER";
+                    title.style.color = isWinner ? "#FFD700" : "#00bcd4";
 
                     content.innerHTML = `
-                        <div style="font-size:24px; margin:20px 0; color:#${Net.players[winnerId]?.color.toString(16).padStart(6,'0')}">
+                        <div style="font-size:20px; margin:15px 0; color:#${Net.players[winnerId]?.color.toString(16).padStart(6,'0')}">
                             ${Net.players[winnerId]?.name || 'Unknown'} wins!
                         </div>
-                        <p style="color:#888;">Completed 3 laps of the Micro Circuit</p>
-                        <button onclick="window.location.reload()" style="margin-top:20px;">Main Menu</button>
+                        <div id="result-buttons">
+                            ${Net.isHost ? '<button id="btn-lobby" style="width:100%;">Return to Lobby</button>' : '<p style="color:#666; font-size:12px;">Waiting for host to reset...</p>'}
+                            <button id="btn-menu" class="btn-secondary" style="width:100%;">Exit to Menu</button>
+                        </div>
                     `;
                     ui.classList.remove('hidden');
                     document.getElementById('hud').classList.add('hidden');
+
+                    if (Net.isHost) {
+                        document.getElementById('btn-lobby').onclick = () => {
+                            network.broadcast({ type: 'RESET_TO_LOBBY' });
+                            this.scene.start('Lobby');
+                        };
+                    }
+                    document.getElementById('btn-menu').onclick = () => window.location.reload();
                 }
             }
 
