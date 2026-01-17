@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser 3 P2P Racer</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            width: 800px;
+            height: 600px;
+            background: #000;
+        }
+
+        /* UI Overlays */
+        #ui-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #333;
+            z-index: 10;
+            min-width: 320px;
+        }
+
+        #loading-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #00bcd4;
+            pointer-events: none;
+        }
+
+        #error-log {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            font-family: monospace;
+            display: none;
+            z-index: 1000;
+            white-space: pre-wrap;
+        }
+
+        #hud {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 5;
+        }
+
+        input {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #222;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 10px;
+            width: 200px;
+            display: block;
+            margin: 10px auto;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 4px;
+            border: none;
+            background: #00bcd4;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        button:hover { background: #008ba3; transform: scale(1.05); }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-danger:hover { background: #d32f2f; }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="error-log"></div>
+    
+    <div id="game-container">
+        <div id="loading-msg">Loading Libraries...</div>
+        <div id="hud" class="hidden">
+            <button id="btn-quit" class="btn-danger">Quit Game</button>
+        </div>
+    </div>
+
+    <!-- UI Overlay Elements -->
+    <div id="ui-layer" class="hidden">
+        <h2 id="ui-title">Multiplayer Racer</h2>
+        <div id="ui-content"></div>
+    </div>
+
+    <script>
+        // --- ERROR HANDLING ---
+        window.onerror = function(msg, url, line) {
+            const errBox = document.getElementById('error-log');
+            errBox.style.display = 'block';
+            errBox.innerText = `Error: ${msg}\nLine: ${line}`;
+            document.getElementById('loading-msg').innerText = "Crash!";
+            return false;
+        };
+
+        window.onload = function() {
+            if (typeof Phaser === 'undefined' || typeof Peer === 'undefined') {
+                throw new Error("Failed to load libraries.");
+            }
+            document.getElementById('loading-msg').innerText = "Initializing Game...";
+            startGame();
+        };
+
+        function startGame() {
+            const COLORS = [0x00bcd4, 0x4caf50, 0xff9800, 0xe91e63, 0x9c27b0, 0xffeb3b];
+            
+            const Net = {
+                peer: null,
+                myId: null,
+                connections: {},
+                players: {},
+                isHost: false,
+                ready: false,
+                gameOver: false
+            };
+
+            class NetworkManager {
+                constructor(sceneEventBus) {
+                    this.events = sceneEventBus;
+                }
+
+                init() {
+                    if (Net.peer) return;
+                    Net.peer = new Peer(null, { debug: 1 });
+                    Net.peer.on('open', (id) => {
+                        Net.myId = id;
+                        Net.players[id] = { id: id, x: 100, y: 300, angle: 0, color: COLORS[0] };
+                        this.updateHostStatus();
+                        this.events.emit('net-ready', id);
+                    });
+                    Net.peer.on('connection', (conn) => this.handleConnection(conn));
+                }
+
+                connectToPeer(hostId) {
+                    if(!Net.peer || hostId === Net.myId) return;
+                    const conn = Net.peer.connect(hostId);
+                    this.handleConnection(conn);
+                }
+
+                handleConnection(conn) {
+                    conn.on('open', () => {
+                        Net.connections[conn.peer] = conn;
+                        conn.send({ type: 'HELLO', player: Net.players[Net.myId] });
+                        if (Object.keys(Net.players).length > 1) {
+                            conn.send({ type: 'PEER_LIST', list: Object.keys(Net.players) });
+                        }
+                        this.updateHostStatus();
+                        this.events.emit('player-joined', conn.peer);
+                    });
+                    conn.on('data', (data) => this.handleData(conn.peer, data));
+                    conn.on('close', () => this.removePlayer(conn.peer));
+                }
+
+                handleData(senderId, data) {
+                    switch(data.type) {
+                        case 'HELLO':
+                            if (!Net.players[senderId]) {
+                                const idx = Object.keys(Net.players).length;
+                                Net.players[senderId] = { ...data.player, color: COLORS[idx % COLORS.length] };
+                                this.updateHostStatus();
+                                this.events.emit('player-updated');
+                            }
+                            break;
+                        case 'PEER_LIST':
+                            data.list.forEach(id => (id !== Net.myId && !Net.connections[id]) && this.connectToPeer(id));
+                            break;
+                        case 'START_GAME':
+                            this.events.emit('start-game');
+                            break;
+                        case 'GAME_UPDATE':
+                            if (Net.players[senderId]) {
+                                Object.assign(Net.players[senderId], data);
+                            }
+                            break;
+                        case 'RACE_FINISHED':
+                            this.events.emit('race-finished', data.winnerId);
+                            break;
+                    }
+                }
+
+                broadcast(data) {
+                    Object.values(Net.connections).forEach(c => c.open && c.send(data));
+                }
+
+                removePlayer(id) {
+                    delete Net.players[id];
+                    delete Net.connections[id];
+                    this.updateHostStatus();
+                    this.events.emit('player-left', id);
+                }
+
+                updateHostStatus() {
+                    const allIds = Object.keys(Net.players).sort();
+                    const wasHost = Net.isHost;
+                    Net.isHost = (Net.myId === allIds[0]);
+                    if (!wasHost && Net.isHost && allIds.length > 1) this.events.emit('becoming-host');
+                    this.events.emit('player-updated');
+                }
+
+                destroy() {
+                    if (Net.peer) Net.peer.destroy();
+                    Net.peer = null;
+                    Net.myId = null;
+                    Net.connections = {};
+                    Net.players = {};
+                    Net.ready = false;
+                }
+            }
+
+            const eventBus = new Phaser.Events.EventEmitter();
+            const network = new NetworkManager(eventBus);
+
+            // --- SCENES ---
+
+            class MenuScene extends Phaser.Scene {
+                constructor() { super('Menu'); }
+                preload() {
+                    const g = this.make.graphics({x: 0, y: 0, add: false});
+                    g.fillStyle(0xffffff).fillRect(0, 0, 32, 20); // Car body
+                    g.fillStyle(0x000000).fillRect(24, 4, 8, 12); // Windshield
+                    g.generateTexture('car', 32, 20);
+
+                    // Finish line texture
+                    const fl = this.make.graphics({x: 0, y: 0, add: false});
+                    fl.fillStyle(0xffffff).fillRect(0,0,16,16).fillRect(16,16,16,16);
+                    fl.fillStyle(0x000000).fillRect(16,0,16,16).fillRect(0,16,16,16);
+                    fl.generateTexture('finish', 32, 32);
+                }
+
+                create() {
+                    document.getElementById('loading-msg').style.display = 'none';
+                    document.getElementById('hud').classList.add('hidden');
+                    network.init();
+                    Net.ready = true;
+                    Net.gameOver = false;
+
+                    const ui = document.getElementById('ui-layer');
+                    const content = document.getElementById('ui-content');
+                    ui.classList.remove('hidden');
+                    
+                    content.innerHTML = `
+                        <button id="btn-create">Create Game</button>
+                        <div style="margin: 10px 0; color: #888;">- OR -</div>
+                        <input type="text" id="inp-room" placeholder="Enter Room ID">
+                        <button id="btn-join">Join Game</button>
+                        <div id="status-msg" style="margin-top:10px; font-size:12px; color:#aaa;">Ready</div>
+                    `;
+
+                    eventBus.on('net-ready', (id) => {
+                        const msg = document.getElementById('status-msg');
+                        if(msg) msg.innerText = "Connected! ID: " + id;
+                    });
+
+                    document.getElementById('btn-create').onclick = () => this.scene.start('Lobby');
+                    document.getElementById('btn-join').onclick = () => {
+                        const room = document.getElementById('inp-room').value.trim();
+                        if (room) { network.connectToPeer(room); this.scene.start('Lobby'); }
+                    };
+                }
+            }
+
+            class LobbyScene extends Phaser.Scene {
+                constructor() { super('Lobby'); }
+                create() {
+                    const ui = document.getElementById('ui-layer');
+                    const content = document.getElementById('ui-content');
+                    ui.classList.remove('hidden');
+                    document.getElementById('ui-title').innerText = "Lobby";
+                    this.render(content);
+                    eventBus.on('player-updated', () => this.render(content));
+                    eventBus.on('start-game', () => this.startGame());
+                }
+
+                render(container) {
+                    const hostId = Object.keys(Net.players).sort()[0];
+                    let html = `<div style="margin-bottom:15px; background:#222; padding:10px; border-radius:4px;">
+                        <span style="color:#888; font-size:12px;">ROOM ID</span><br>
+                        <b>${hostId || '...'}</b>
+                        <button onclick="navigator.clipboard.writeText('${hostId}')" style="padding:2px 8px; font-size:12px; margin-left:10px;">Copy</button>
+                    </div><div style="text-align:left; background:#111; padding:10px; border-radius:4px;">`;
+
+                    Object.values(Net.players).forEach(p => {
+                        html += `<div style="padding:5px; border-bottom:1px solid #222; color:#${p.color.toString(16).padStart(6,'0')}">
+                            ${p.id === Net.myId ? '<b>You</b>' : 'Player'} (${p.id.substr(0,4)}) ${p.id === hostId ? '👑' : ''}
+                        </div>`;
+                    });
+
+                    html += `</div>`;
+                    if (Net.myId === hostId) {
+                        html += `<button id="btn-start" style="margin-top:15px; width:100%; background:#4CAF50; color:white;">START RACE</button>`;
+                    } else {
+                        html += `<div style="margin-top:15px; color:#aaa;">Waiting for Host...</div>`;
+                    }
+                    container.innerHTML = html;
+                    const b = document.getElementById('btn-start');
+                    if (b) b.onclick = () => { network.broadcast({ type: 'START_GAME' }); this.startGame(); };
+                }
+
+                startGame() {
+                    document.getElementById('ui-layer').classList.add('hidden');
+                    this.scene.start('Game');
+                }
+            }
+
+            class GameScene extends Phaser.Scene {
+                constructor() { super('Game'); }
+                create() {
+                    Net.gameOver = false;
+                    document.getElementById('hud').classList.remove('hidden');
+                    document.getElementById('btn-quit').onclick = () => this.quit();
+
+                    this.add.grid(400, 300, 800, 600, 32, 32, 0x1a1a1a).setAltFillStyle(0x222222).setOutlineStyle(0x333333);
+                    
+                    // Finish Line
+                    this.finishLine = this.add.tileSprite(750, 300, 40, 600, 'finish').setAlpha(0.5);
+                    this.physics.add.existing(this.finishLine, true);
+
+                    this.playerSprites = {};
+                    Object.values(Net.players).forEach(p => this.spawn(p));
+
+                    this.keys = this.input.keyboard.addKeys({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', w: 'W', a: 'A', s: 'S', d: 'D' });
+
+                    eventBus.on('player-joined', (id) => Net.players[id] && this.spawn(Net.players[id]));
+                    eventBus.on('player-left', (id) => {
+                        if (this.playerSprites[id]) {
+                            this.playerSprites[id].sprite.destroy();
+                            this.playerSprites[id].text.destroy();
+                            delete this.playerSprites[id];
+                        }
+                    });
+
+                    eventBus.on('race-finished', (winnerId) => this.showResult(winnerId));
+                }
+
+                spawn(p) {
+                    const sprite = this.physics.add.image(100, p.y || 300, 'car').setTint(p.color).setDrag(0.98).setDamping(true).setCollideWorldBounds(true);
+                    const text = this.add.text(0, 0, p.id === Net.myId ? "YOU" : p.id.substr(0,4), { fontSize: '12px', backgroundColor: '#00000080' }).setOrigin(0.5);
+                    this.playerSprites[p.id] = { sprite, text };
+                }
+
+                update() {
+                    if (Net.gameOver) return;
+                    const my = this.playerSprites[Net.myId];
+                    if (my) {
+                        const s = my.sprite;
+                        if (this.keys.up.isDown || this.keys.w.isDown) this.physics.velocityFromRotation(s.rotation, 300, s.body.velocity);
+                        else if (this.keys.down.isDown || this.keys.s.isDown) this.physics.velocityFromRotation(s.rotation, -150, s.body.velocity);
+                        
+                        if (this.keys.left.isDown || this.keys.a.isDown) s.setAngularVelocity(-180);
+                        else if (this.keys.right.isDown || this.keys.d.isDown) s.setAngularVelocity(180);
+                        else s.setAngularVelocity(0);
+
+                        network.broadcast({ type: 'GAME_UPDATE', x: s.x, y: s.y, angle: s.angle });
+
+                        // Check Win
+                        if (s.x > 730) {
+                            Net.gameOver = true;
+                            network.broadcast({ type: 'RACE_FINISHED', winnerId: Net.myId });
+                            this.showResult(Net.myId);
+                        }
+                    }
+
+                    Object.keys(Net.players).forEach(id => {
+                        const obj = this.playerSprites[id];
+                        if (obj) {
+                            if (id !== Net.myId) {
+                                const d = Net.players[id];
+                                obj.sprite.x = Phaser.Math.Linear(obj.sprite.x, d.x, 0.2);
+                                obj.sprite.y = Phaser.Math.Linear(obj.sprite.y, d.y, 0.2);
+                                obj.sprite.angle = d.angle;
+                            }
+                            obj.text.setPosition(obj.sprite.x, obj.sprite.y - 25);
+                        }
+                    });
+                }
+
+                showResult(winnerId) {
+                    Net.gameOver = true;
+                    const ui = document.getElementById('ui-layer');
+                    const content = document.getElementById('ui-content');
+                    const title = document.getElementById('ui-title');
+                    
+                    const isWinner = winnerId === Net.myId;
+                    title.innerText = isWinner ? "🏁 VICTORY!" : "🏳️ DEFEAT";
+                    title.style.color = isWinner ? "#4CAF50" : "#f44336";
+
+                    content.innerHTML = `
+                        <p style="font-size:18px;">${isWinner ? "You crossed the line first!" : "Another player won the race."}</p>
+                        <div style="margin:20px 0; padding:10px; background:#222; border-radius:4px;">
+                            Winner: <b style="color:#${Net.players[winnerId]?.color.toString(16).padStart(6,'0')}">${winnerId === Net.myId ? 'You' : 'Player ('+winnerId.substr(0,4)+')'}</b>
+                        </div>
+                        <button onclick="window.location.reload()">Return to Menu</button>
+                    `;
+                    ui.classList.remove('hidden');
+                }
+
+                quit() {
+                    window.location.reload();
+                }
+            }
+
+            const config = {
+                type: Phaser.AUTO,
+                width: 800,
+                height: 600,
+                backgroundColor: '#121212',
+                parent: 'game-container',
+                physics: { default: 'arcade', arcade: { debug: false } },
+                scene: [MenuScene, LobbyScene, GameScene]
+            };
+            new Phaser.Game(config);
+        }
+    </script>
+</body>
+</html>
