@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phaser 3 P2P Racer</title>
+    <title>Phaser 3 P2P Racer - Arcade Edition</title>
     
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
@@ -12,7 +12,7 @@
     <style>
         body {
             margin: 0;
-            background-color: #121212;
+            background-color: #0a0a0a;
             color: #ffffff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
@@ -24,10 +24,11 @@
 
         #game-container {
             position: relative;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            box-shadow: 0 0 30px rgba(0,0,0,0.7);
             width: 800px;
             height: 600px;
             background: #000;
+            border: 2px solid #333;
         }
 
         /* UI Overlays */
@@ -37,10 +38,10 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.95);
             padding: 2rem;
             border-radius: 12px;
-            border: 1px solid #333;
+            border: 1px solid #00bcd4;
             z-index: 10;
             min-width: 320px;
         }
@@ -71,26 +72,42 @@
 
         #hud {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 15px;
+            left: 15px;
+            right: 15px;
             z-index: 5;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+
+        #hud > * { pointer-events: auto; }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 6px;
+            border-left: 4px solid #00bcd4;
+            font-weight: bold;
         }
 
         input {
-            padding: 10px;
+            padding: 12px;
             border-radius: 4px;
             border: 1px solid #444;
-            background: #222;
+            background: #111;
             color: white;
             font-size: 16px;
             margin-bottom: 10px;
-            width: 200px;
+            width: 240px;
             display: block;
             margin: 10px auto;
+            text-align: center;
         }
 
         button {
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 4px;
             border: none;
             background: #00bcd4;
@@ -101,11 +118,13 @@
             transition: all 0.2s;
         }
 
-        button:hover { background: #008ba3; transform: scale(1.05); }
+        button:hover { background: #00e5ff; transform: scale(1.05); }
         .btn-danger { background: #f44336; color: white; }
-        .btn-danger:hover { background: #d32f2f; }
+        .btn-danger:hover { background: #ff5252; }
         
         .hidden { display: none !important; }
+
+        label { display: block; font-size: 12px; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -113,49 +132,53 @@
     <div id="error-log"></div>
     
     <div id="game-container">
-        <div id="loading-msg">Loading Libraries...</div>
+        <div id="loading-msg">Warming up engines...</div>
+        
         <div id="hud" class="hidden">
-            <button id="btn-quit" class="btn-danger">Quit Game</button>
+            <div id="lap-counter" class="stat-box">LAP: 1/3</div>
+            <button id="btn-quit" class="btn-danger">QUIT</button>
         </div>
     </div>
 
     <!-- UI Overlay Elements -->
     <div id="ui-layer" class="hidden">
-        <h2 id="ui-title">Multiplayer Racer</h2>
+        <h2 id="ui-title">MICRO P2P RACER</h2>
         <div id="ui-content"></div>
     </div>
 
     <script>
+        // --- CONSTANTS & STATE ---
+        const LAPS_TO_WIN = 3;
+        const COLORS = [0x00bcd4, 0x4caf50, 0xff9800, 0xe91e63, 0x9c27b0, 0xffeb3b];
+        
+        const Net = {
+            peer: null,
+            myId: null,
+            playerName: localStorage.getItem('p2p-racer-name') || "Racer_" + Math.floor(Math.random()*999),
+            connections: {},
+            players: {},
+            isHost: false,
+            ready: false,
+            gameOver: false
+        };
+
         // --- ERROR HANDLING ---
-        window.onerror = function(msg, url, line) {
+        window.onerror = (msg, url, line) => {
             const errBox = document.getElementById('error-log');
             errBox.style.display = 'block';
-            errBox.innerText = `Error: ${msg}\nLine: ${line}`;
-            document.getElementById('loading-msg').innerText = "Crash!";
+            errBox.innerText = `Crash: ${msg}\nLine: ${line}`;
             return false;
         };
 
-        window.onload = function() {
+        window.onload = () => {
             if (typeof Phaser === 'undefined' || typeof Peer === 'undefined') {
-                throw new Error("Failed to load libraries.");
+                document.getElementById('loading-msg').innerText = "Library Load Failed";
+                return;
             }
-            document.getElementById('loading-msg').innerText = "Initializing Game...";
             startGame();
         };
 
         function startGame() {
-            const COLORS = [0x00bcd4, 0x4caf50, 0xff9800, 0xe91e63, 0x9c27b0, 0xffeb3b];
-            
-            const Net = {
-                peer: null,
-                myId: null,
-                connections: {},
-                players: {},
-                isHost: false,
-                ready: false,
-                gameOver: false
-            };
-
             class NetworkManager {
                 constructor(sceneEventBus) {
                     this.events = sceneEventBus;
@@ -166,7 +189,7 @@
                     Net.peer = new Peer(null, { debug: 1 });
                     Net.peer.on('open', (id) => {
                         Net.myId = id;
-                        Net.players[id] = { id: id, x: 100, y: 300, angle: 0, color: COLORS[0] };
+                        Net.players[id] = { id, name: Net.playerName, x: 100, y: 450, angle: 0, color: COLORS[0], laps: 0 };
                         this.updateHostStatus();
                         this.events.emit('net-ready', id);
                     });
@@ -233,40 +256,22 @@
 
                 updateHostStatus() {
                     const allIds = Object.keys(Net.players).sort();
-                    const wasHost = Net.isHost;
                     Net.isHost = (Net.myId === allIds[0]);
-                    if (!wasHost && Net.isHost && allIds.length > 1) this.events.emit('becoming-host');
                     this.events.emit('player-updated');
-                }
-
-                destroy() {
-                    if (Net.peer) Net.peer.destroy();
-                    Net.peer = null;
-                    Net.myId = null;
-                    Net.connections = {};
-                    Net.players = {};
-                    Net.ready = false;
                 }
             }
 
             const eventBus = new Phaser.Events.EventEmitter();
             const network = new NetworkManager(eventBus);
 
-            // --- SCENES ---
-
+            // --- MENU SCENE ---
             class MenuScene extends Phaser.Scene {
                 constructor() { super('Menu'); }
                 preload() {
                     const g = this.make.graphics({x: 0, y: 0, add: false});
-                    g.fillStyle(0xffffff).fillRect(0, 0, 32, 20); // Car body
-                    g.fillStyle(0x000000).fillRect(24, 4, 8, 12); // Windshield
-                    g.generateTexture('car', 32, 20);
-
-                    // Finish line texture
-                    const fl = this.make.graphics({x: 0, y: 0, add: false});
-                    fl.fillStyle(0xffffff).fillRect(0,0,16,16).fillRect(16,16,16,16);
-                    fl.fillStyle(0x000000).fillRect(16,0,16,16).fillRect(0,16,16,16);
-                    fl.generateTexture('finish', 32, 32);
+                    g.fillStyle(0xffffff).fillRect(0, 0, 24, 14); // Car body
+                    g.fillStyle(0x000000).fillRect(18, 2, 4, 10); // Windshield
+                    g.generateTexture('car', 24, 14);
                 }
 
                 create() {
@@ -281,26 +286,45 @@
                     ui.classList.remove('hidden');
                     
                     content.innerHTML = `
-                        <button id="btn-create">Create Game</button>
-                        <div style="margin: 10px 0; color: #888;">- OR -</div>
-                        <input type="text" id="inp-room" placeholder="Enter Room ID">
-                        <button id="btn-join">Join Game</button>
-                        <div id="status-msg" style="margin-top:10px; font-size:12px; color:#aaa;">Ready</div>
+                        <label>YOUR NAME</label>
+                        <input type="text" id="inp-name" value="${Net.playerName}" maxlength="12">
+                        <button id="btn-create" style="width:100%; margin-top:10px;">Create Game</button>
+                        <div style="margin: 15px 0; color: #555; font-size:12px;">OR JOIN BY ID</div>
+                        <input type="text" id="inp-room" placeholder="Paste ID here">
+                        <button id="btn-join" style="width:100%;">Join Game</button>
+                        <div id="status-msg" style="margin-top:15px; font-size:11px; color:#00bcd4;">Connecting...</div>
                     `;
 
                     eventBus.on('net-ready', (id) => {
                         const msg = document.getElementById('status-msg');
-                        if(msg) msg.innerText = "Connected! ID: " + id;
+                        if(msg) msg.innerText = "Network Ready: " + id;
                     });
 
-                    document.getElementById('btn-create').onclick = () => this.scene.start('Lobby');
+                    document.getElementById('btn-create').onclick = () => this.proceed('Lobby');
                     document.getElementById('btn-join').onclick = () => {
                         const room = document.getElementById('inp-room').value.trim();
-                        if (room) { network.connectToPeer(room); this.scene.start('Lobby'); }
+                        if (room) { 
+                            this.saveName();
+                            network.connectToPeer(room); 
+                            this.scene.start('Lobby'); 
+                        }
                     };
+                }
+
+                saveName() {
+                    const name = document.getElementById('inp-name').value.trim() || "Racer";
+                    Net.playerName = name;
+                    localStorage.setItem('p2p-racer-name', name);
+                    if (Net.players[Net.myId]) Net.players[Net.myId].name = name;
+                }
+
+                proceed(scene) {
+                    this.saveName();
+                    this.scene.start(scene);
                 }
             }
 
+            // --- LOBBY SCENE ---
             class LobbyScene extends Phaser.Scene {
                 constructor() { super('Lobby'); }
                 create() {
@@ -315,23 +339,24 @@
 
                 render(container) {
                     const hostId = Object.keys(Net.players).sort()[0];
-                    let html = `<div style="margin-bottom:15px; background:#222; padding:10px; border-radius:4px;">
-                        <span style="color:#888; font-size:12px;">ROOM ID</span><br>
-                        <b>${hostId || '...'}</b>
-                        <button onclick="navigator.clipboard.writeText('${hostId}')" style="padding:2px 8px; font-size:12px; margin-left:10px;">Copy</button>
-                    </div><div style="text-align:left; background:#111; padding:10px; border-radius:4px;">`;
+                    let html = `<div style="margin-bottom:15px; background:#111; padding:12px; border-radius:4px; border:1px solid #333;">
+                        <span style="color:#888; font-size:11px; letter-spacing:1px;">ROOM ID</span><br>
+                        <b style="color:#00bcd4; font-size:18px;">${hostId || '...'}</b>
+                        <button onclick="navigator.clipboard.writeText('${hostId}')" style="padding:4px 8px; font-size:10px; margin-left:10px; background:#333; color:white;">COPY</button>
+                    </div><div style="text-align:left; background:#000; padding:10px; border-radius:4px;">`;
 
                     Object.values(Net.players).forEach(p => {
-                        html += `<div style="padding:5px; border-bottom:1px solid #222; color:#${p.color.toString(16).padStart(6,'0')}">
-                            ${p.id === Net.myId ? '<b>You</b>' : 'Player'} (${p.id.substr(0,4)}) ${p.id === hostId ? '👑' : ''}
+                        html += `<div style="padding:8px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="color:#${p.color.toString(16).padStart(6,'0')}">● ${p.name || 'Unknown'}</span>
+                            <span style="font-size:10px; color:#555;">${p.id === hostId ? 'HOST' : 'PEER'}</span>
                         </div>`;
                     });
 
                     html += `</div>`;
                     if (Net.myId === hostId) {
-                        html += `<button id="btn-start" style="margin-top:15px; width:100%; background:#4CAF50; color:white;">START RACE</button>`;
+                        html += `<button id="btn-start" style="margin-top:20px; width:100%; background:#4CAF50; color:white;">START RACE</button>`;
                     } else {
-                        html += `<div style="margin-top:15px; color:#aaa;">Waiting for Host...</div>`;
+                        html += `<div style="margin-top:20px; color:#666; font-style:italic;">Waiting for host...</div>`;
                     }
                     container.innerHTML = html;
                     const b = document.getElementById('btn-start');
@@ -344,25 +369,44 @@
                 }
             }
 
+            // --- GAME SCENE ---
             class GameScene extends Phaser.Scene {
                 constructor() { super('Game'); }
                 create() {
                     Net.gameOver = false;
-                    document.getElementById('hud').classList.remove('hidden');
-                    document.getElementById('btn-quit').onclick = () => this.quit();
+                    this.myLaps = 0;
+                    this.hasReachedCheckpoint = false; // Prevents cheating
 
-                    this.add.grid(400, 300, 800, 600, 32, 32, 0x1a1a1a).setAltFillStyle(0x222222).setOutlineStyle(0x333333);
+                    document.getElementById('hud').classList.remove('hidden');
+                    document.getElementById('btn-quit').onclick = () => window.location.reload();
+
+                    // Track Rendering (Loop)
+                    this.add.rectangle(400, 300, 800, 600, 0x1a1a1a); // Ground
+                    this.add.grid(400, 300, 800, 600, 64, 64, 0x222222, 0.5);
                     
-                    // Finish Line
-                    this.finishLine = this.add.tileSprite(750, 300, 40, 600, 'finish').setAlpha(0.5);
-                    this.physics.add.existing(this.finishLine, true);
+                    // Central Island
+                    const island = this.add.rectangle(400, 300, 400, 200, 0x000000);
+                    this.physics.add.existing(island, true);
+
+                    // Outer Walls
+                    const walls = this.physics.add.staticGroup();
+                    walls.add(this.add.rectangle(400, 5, 800, 10, 0x333333)); // Top
+                    walls.add(this.add.rectangle(400, 595, 800, 10, 0x333333)); // Bottom
+                    walls.add(this.add.rectangle(5, 300, 10, 600, 0x333333)); // Left
+                    walls.add(this.add.rectangle(795, 300, 10, 600, 0x333333)); // Right
+                    
+                    // Finish Line (Start area)
+                    this.add.rectangle(150, 450, 10, 140, 0xffffff); // Start line
+                    this.add.text(145, 385, "START", { fontSize: '12px', color: '#fff' }).setOrigin(0.5);
+
+                    // Checkpoint line (opposite side)
+                    this.checkpointLine = this.add.rectangle(650, 150, 10, 140, 0x00bcd4, 0.3);
 
                     this.playerSprites = {};
                     Object.values(Net.players).forEach(p => this.spawn(p));
 
                     this.keys = this.input.keyboard.addKeys({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', w: 'W', a: 'A', s: 'S', d: 'D' });
 
-                    eventBus.on('player-joined', (id) => Net.players[id] && this.spawn(Net.players[id]));
                     eventBus.on('player-left', (id) => {
                         if (this.playerSprites[id]) {
                             this.playerSprites[id].sprite.destroy();
@@ -372,11 +416,30 @@
                     });
 
                     eventBus.on('race-finished', (winnerId) => this.showResult(winnerId));
+
+                    // Collisions
+                    Object.values(this.playerSprites).forEach(obj => {
+                        this.physics.add.collider(obj.sprite, island);
+                        this.physics.add.collider(obj.sprite, walls);
+                    });
                 }
 
                 spawn(p) {
-                    const sprite = this.physics.add.image(100, p.y || 300, 'car').setTint(p.color).setDrag(0.98).setDamping(true).setCollideWorldBounds(true);
-                    const text = this.add.text(0, 0, p.id === Net.myId ? "YOU" : p.id.substr(0,4), { fontSize: '12px', backgroundColor: '#00000080' }).setOrigin(0.5);
+                    const sprite = this.physics.add.image(100 + (Math.random()*50), 400 + (Math.random()*100), 'car')
+                        .setTint(p.color)
+                        .setDrag(0.94)
+                        .setAngularDrag(0.9)
+                        .setDamping(true)
+                        .setCollideWorldBounds(true);
+                    
+                    const text = this.add.text(0, 0, p.name || p.id.substr(0,4), { 
+                        fontSize: '12px', 
+                        fontStyle: 'bold', 
+                        fill: '#fff',
+                        backgroundColor: '#00000080',
+                        padding: { x: 4, y: 2 }
+                    }).setOrigin(0.5);
+
                     this.playerSprites[p.id] = { sprite, text };
                 }
 
@@ -385,33 +448,66 @@
                     const my = this.playerSprites[Net.myId];
                     if (my) {
                         const s = my.sprite;
-                        if (this.keys.up.isDown || this.keys.w.isDown) this.physics.velocityFromRotation(s.rotation, 300, s.body.velocity);
-                        else if (this.keys.down.isDown || this.keys.s.isDown) this.physics.velocityFromRotation(s.rotation, -150, s.body.velocity);
                         
-                        if (this.keys.left.isDown || this.keys.a.isDown) s.setAngularVelocity(-180);
-                        else if (this.keys.right.isDown || this.keys.d.isDown) s.setAngularVelocity(180);
+                        // Arcade Handling Logic
+                        const acceleration = 500;
+                        const turnSpeed = 220;
+
+                        if (this.keys.up.isDown || this.keys.w.isDown) {
+                            this.physics.velocityFromRotation(s.rotation, acceleration, s.body.acceleration);
+                        } else if (this.keys.down.isDown || this.keys.s.isDown) {
+                            this.physics.velocityFromRotation(s.rotation, -acceleration/2, s.body.acceleration);
+                        } else {
+                            s.setAcceleration(0);
+                        }
+                        
+                        if (this.keys.left.isDown || this.keys.a.isDown) s.setAngularVelocity(-turnSpeed);
+                        else if (this.keys.right.isDown || this.keys.d.isDown) s.setAngularVelocity(turnSpeed);
                         else s.setAngularVelocity(0);
 
-                        network.broadcast({ type: 'GAME_UPDATE', x: s.x, y: s.y, angle: s.angle });
-
-                        // Check Win
-                        if (s.x > 730) {
-                            Net.gameOver = true;
-                            network.broadcast({ type: 'RACE_FINISHED', winnerId: Net.myId });
-                            this.showResult(Net.myId);
+                        // Loop & Checkpoint Logic
+                        // Checkpoint is at Top-Right
+                        if (!this.hasReachedCheckpoint && s.x > 600 && s.y < 300) {
+                            this.hasReachedCheckpoint = true;
+                            this.checkpointLine.setFillStyle(0x00ff00, 0.5);
                         }
+
+                        // Finish Line is at Bottom-Left
+                        if (this.hasReachedCheckpoint && s.x < 150 && s.y > 350) {
+                            this.myLaps++;
+                            this.hasReachedCheckpoint = false;
+                            this.checkpointLine.setFillStyle(0x00bcd4, 0.3);
+                            document.getElementById('lap-counter').innerText = `LAP: ${Math.min(this.myLaps + 1, LAPS_TO_WIN)}/${LAPS_TO_WIN}`;
+                            
+                            if (this.myLaps >= LAPS_TO_WIN) {
+                                Net.gameOver = true;
+                                network.broadcast({ type: 'RACE_FINISHED', winnerId: Net.myId });
+                                this.showResult(Net.myId);
+                            }
+                        }
+
+                        network.broadcast({ 
+                            type: 'GAME_UPDATE', 
+                            x: s.x, 
+                            y: s.y, 
+                            angle: s.angle, 
+                            laps: this.myLaps,
+                            name: Net.playerName 
+                        });
                     }
 
+                    // Sync remote players
                     Object.keys(Net.players).forEach(id => {
                         const obj = this.playerSprites[id];
                         if (obj) {
                             if (id !== Net.myId) {
                                 const d = Net.players[id];
-                                obj.sprite.x = Phaser.Math.Linear(obj.sprite.x, d.x, 0.2);
-                                obj.sprite.y = Phaser.Math.Linear(obj.sprite.y, d.y, 0.2);
+                                obj.sprite.x = Phaser.Math.Linear(obj.sprite.x, d.x, 0.25);
+                                obj.sprite.y = Phaser.Math.Linear(obj.sprite.y, d.y, 0.25);
                                 obj.sprite.angle = d.angle;
+                                obj.text.setText(d.name || id.substr(0,4));
                             }
-                            obj.text.setPosition(obj.sprite.x, obj.sprite.y - 25);
+                            obj.text.setPosition(obj.sprite.x, obj.sprite.y - 22);
                         }
                     });
                 }
@@ -423,21 +519,18 @@
                     const title = document.getElementById('ui-title');
                     
                     const isWinner = winnerId === Net.myId;
-                    title.innerText = isWinner ? "🏁 VICTORY!" : "🏳️ DEFEAT";
-                    title.style.color = isWinner ? "#4CAF50" : "#f44336";
+                    title.innerText = isWinner ? "🏆 CHAMPION!" : "🏳️ FINISHED";
+                    title.style.color = isWinner ? "#FFD700" : "#ffffff";
 
                     content.innerHTML = `
-                        <p style="font-size:18px;">${isWinner ? "You crossed the line first!" : "Another player won the race."}</p>
-                        <div style="margin:20px 0; padding:10px; background:#222; border-radius:4px;">
-                            Winner: <b style="color:#${Net.players[winnerId]?.color.toString(16).padStart(6,'0')}">${winnerId === Net.myId ? 'You' : 'Player ('+winnerId.substr(0,4)+')'}</b>
+                        <div style="font-size:24px; margin:20px 0; color:#${Net.players[winnerId]?.color.toString(16).padStart(6,'0')}">
+                            ${Net.players[winnerId]?.name || 'Unknown'} wins!
                         </div>
-                        <button onclick="window.location.reload()">Return to Menu</button>
+                        <p style="color:#888;">Completed 3 laps of the Micro Circuit</p>
+                        <button onclick="window.location.reload()" style="margin-top:20px;">Main Menu</button>
                     `;
                     ui.classList.remove('hidden');
-                }
-
-                quit() {
-                    window.location.reload();
+                    document.getElementById('hud').classList.add('hidden');
                 }
             }
 
@@ -445,7 +538,7 @@
                 type: Phaser.AUTO,
                 width: 800,
                 height: 600,
-                backgroundColor: '#121212',
+                backgroundColor: '#0a0a0a',
                 parent: 'game-container',
                 physics: { default: 'arcade', arcade: { debug: false } },
                 scene: [MenuScene, LobbyScene, GameScene]
