@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser Matter Track Builder</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #00ff9d;
+            --accent-hover: #00cc7d;
+            --border-color: #333;
+            --outer-wall-color: #4a90e2;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 340px;
+            background-color: var(--panel-color);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0 0 10px 0;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            font-size: 0.9rem;
+            margin: 10px 0 5px 0;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        /* Controls */
+        .control-group {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+
+        button {
+            background-color: #333;
+            color: white;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 5px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        button:hover {
+            background-color: #444;
+        }
+
+        button.primary {
+            background-color: var(--accent-color);
+            color: #000;
+            font-weight: bold;
+            border: none;
+        }
+
+        button.primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button.danger {
+            background-color: #ff4757;
+            border: none;
+        }
+        
+        button.danger:hover {
+            background-color: #ff6b81;
+        }
+
+        button.sm {
+            width: auto;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            margin-bottom: 0;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .file-upload-label {
+            display: block;
+            background: #333;
+            padding: 10px;
+            text-align: center;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px dashed #666;
+            margin-bottom: 10px;
+        }
+        
+        .file-upload-label:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        /* Canvas Area */
+        .main-area {
+            flex-grow: 1;
+            position: relative;
+            background-color: #000;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(rgba(30, 30, 30, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 30, 30, 0.5) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            cursor: crosshair;
+        }
+
+        /* Output */
+        textarea {
+            width: 100%;
+            height: 150px;
+            background-color: #111;
+            color: #0f0;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            resize: vertical;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .shapes-list {
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .shape-item {
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            background: #222;
+            margin-bottom: 4px;
+            border-radius: 3px;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .shape-item.outer-wall {
+            border-left: 3px solid var(--outer-wall-color);
+        }
+        
+        .shape-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .shape-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.9rem;
+        }
+        
+        .shape-item:hover {
+            background: #2c2c2c;
+        }
+        
+        .delete-shape {
+            color: #ff4757;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h1>Track Builder v1.2</h1>
+        
+        <div class="control-group">
+            <h2>1. Image</h2>
+            <label class="file-upload-label" for="imageLoader">
+                📁 Upload Track Image
+            </label>
+            <input type="file" id="imageLoader" accept="image/*">
+            <div id="imageStatus" class="status">No image loaded</div>
+        </div>
+
+        <div class="control-group">
+            <h2>2. Drawing Tools</h2>
+            <button id="finishShapeBtn" class="primary">Finish Shape (Right Click)</button>
+            <button id="undoPointBtn">Undo Last Point (Ctrl+Z)</button>
+            
+            <div style="margin-top: 15px; border-top: 1px solid #444; padding-top:10px;">
+                <div class="slider-row">
+                    <span>Wall Thickness</span>
+                    <span id="thicknessVal">100px</span>
+                </div>
+                <input type="range" id="thicknessSlider" min="20" max="500" value="100">
+            </div>
+
+            <div class="status">Click to add points. Right-click to close.</div>
+        </div>
+
+        <div class="control-group">
+            <h2>3. Shapes</h2>
+            <div id="shapesList" class="shapes-list">
+                <!-- Shapes go here -->
+            </div>
+            <button id="clearAllBtn" class="danger" style="margin-top:5px;">Clear All Shapes</button>
+        </div>
+
+        <div class="control-group">
+            <h2>4. Export</h2>
+            <button id="generateBtn" class="primary">Generate Phaser Code</button>
+            <textarea id="output" readonly placeholder="// Code will appear here..."></textarea>
+            <button id="copyBtn">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <div class="main-area" id="mainArea">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const imageLoader = document.getElementById('imageLoader');
+        const output = document.getElementById('output');
+        const thicknessSlider = document.getElementById('thicknessSlider');
+        const thicknessVal = document.getElementById('thicknessVal');
+        
+        // State
+        let img = null;
+        // Shape structure: { points: [{x,y}...], isOuter: boolean, flip: boolean }
+        let shapes = []; 
+        let currentShape = []; // Array of {x,y}
+        let wallThickness = 100; 
+
+        // Init Canvas
+        canvas.width = 800;
+        canvas.height = 600;
+        draw();
+
+        // --- Event Listeners ---
+
+        thicknessSlider.addEventListener('input', (e) => {
+            wallThickness = parseInt(e.target.value);
+            thicknessVal.innerText = wallThickness + 'px';
+            draw();
+            generateCode();
+        });
+
+        imageLoader.addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                img = new Image();
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    document.getElementById('imageStatus').innerText = `Loaded: ${img.width}x${img.height}px`;
+                    draw();
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(e.target.files[0]);
+        });
+
+        canvas.addEventListener('mousedown', function(e) {
+            if (e.button === 0) { // Left Click
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+                const y = Math.round(e.clientY - rect.top);
+                currentShape.push({x, y});
+                draw();
+            } else if (e.button === 2) { // Right Click
+                finishShape();
+            }
+        });
+
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', event => event.preventDefault());
+
+        document.getElementById('finishShapeBtn').addEventListener('click', finishShape);
+        
+        document.getElementById('undoPointBtn').addEventListener('click', () => {
+            if (currentShape.length > 0) {
+                currentShape.pop();
+                draw();
+            }
+        });
+
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+            if(confirm("Delete all shapes?")) {
+                shapes = [];
+                currentShape = [];
+                updateShapeList();
+                draw();
+            }
+        });
+
+        document.getElementById('generateBtn').addEventListener('click', generateCode);
+        
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            output.select();
+            document.execCommand('copy');
+            const originalText = document.getElementById('copyBtn').innerText;
+            document.getElementById('copyBtn').innerText = "Copied!";
+            setTimeout(() => document.getElementById('copyBtn').innerText = originalText, 1000);
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                if (currentShape.length > 0) {
+                    currentShape.pop();
+                    draw();
+                }
+            }
+            if (e.key === 'Enter') {
+                finishShape();
+            }
+        });
+
+        // --- Core Functions ---
+
+        function finishShape() {
+            if (currentShape.length < 3) {
+                alert("A shape needs at least 3 points.");
+                return;
+            }
+            // Add new shape with defaults
+            shapes.push({
+                points: [...currentShape],
+                isOuter: false,
+                flip: false
+            });
+            currentShape = [];
+            updateShapeList();
+            draw();
+            generateCode(); 
+        }
+
+        function updateShapeList() {
+            const list = document.getElementById('shapesList');
+            list.innerHTML = '';
+            shapes.forEach((shape, index) => {
+                const div = document.createElement('div');
+                div.className = `shape-item ${shape.isOuter ? 'outer-wall' : ''}`;
+                
+                // HTML for the list item
+                div.innerHTML = `
+                    <div class="shape-header">
+                        <span style="font-weight:bold; color: ${shape.isOuter ? '#4a90e2' : '#00ff9d'}">
+                            ${shape.isOuter ? 'Outer Boundary' : 'Inner Island'} #${index + 1}
+                        </span>
+                        <span class="delete-shape" onclick="deleteShape(${index})">×</span>
+                    </div>
+                    <div class="shape-controls">
+                        <label class="checkbox-label" title="Check this if drawing the outside limit of the track">
+                            <input type="checkbox" onchange="toggleOuter(${index})" ${shape.isOuter ? 'checked' : ''}>
+                            Outer Wall
+                        </label>
+                        ${shape.isOuter ? `<button class="sm" onclick="toggleFlip(${index})">Flip Direction</button>` : ''}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        window.deleteShape = function(index) {
+            shapes.splice(index, 1);
+            updateShapeList();
+            draw();
+            generateCode();
+        }
+
+        window.toggleOuter = function(index) {
+            shapes[index].isOuter = !shapes[index].isOuter;
+            updateShapeList();
+            draw();
+            generateCode();
+        }
+
+        window.toggleFlip = function(index) {
+            shapes[index].flip = !shapes[index].flip;
+            draw();
+            generateCode();
+        }
+
+        function draw() {
+            // Clear
+            ctx.fillStyle = "#111";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Image
+            if (img) {
+                ctx.drawImage(img, 0, 0);
+            } else {
+                ctx.fillStyle = "#333";
+                ctx.font = "20px Arial";
+                ctx.fillText("Upload an image to start", 20, 50);
+            }
+
+            // Draw Completed Shapes
+            shapes.forEach((shape, idx) => {
+                if (shape.isOuter) {
+                    drawOuterWall(shape, idx);
+                } else {
+                    drawInnerWall(shape, idx);
+                }
+            });
+
+            // Draw Current Shape
+            if (currentShape.length > 0) {
+                drawPolygon(currentShape, 'rgba(255, 255, 255, 0.1)', '#fff', false);
+            }
+        }
+
+        function drawInnerWall(shape, idx) {
+            // Standard Green Poly
+            drawPolygon(shape.points, 'rgba(0, 255, 157, 0.3)', '#00ff9d', true);
+            const center = getCentroid(shape.points);
+            ctx.fillStyle = "white";
+            ctx.font = "12px Arial";
+            ctx.fillText("#" + (idx+1), center.x, center.y);
+        }
+
+        function drawOuterWall(shape, idx) {
+            // Complex Blue Extruded Wall
+            const pts = shape.points;
+            ctx.fillStyle = "rgba(74, 144, 226, 0.4)";
+            ctx.strokeStyle = "#4a90e2";
+            ctx.lineWidth = 1;
+
+            // Draw the "Wall" quads
+            for (let i = 0; i < pts.length; i++) {
+                const p1 = pts[i];
+                const p2 = pts[(i + 1) % pts.length];
+                
+                // Calculate Normal
+                let dx = p2.x - p1.x;
+                let dy = p2.y - p1.y;
+                // Normalize
+                const len = Math.sqrt(dx*dx + dy*dy);
+                if(len === 0) continue;
+                dx /= len;
+                dy /= len;
+
+                // Normal Vector (-dy, dx)
+                let nx = -dy;
+                let ny = dx;
+
+                if (shape.flip) {
+                    nx = -nx;
+                    ny = -ny;
+                }
+
+                // Extrude
+                const ex = nx * wallThickness;
+                const ey = ny * wallThickness;
+
+                // Draw Quad
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineTo(p2.x + ex, p2.y + ey);
+                ctx.lineTo(p1.x + ex, p1.y + ey);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Draw the defining line brighter
+            drawPolygon(pts, 'rgba(0,0,0,0)', '#8bc1ff', true);
+            
+            const center = pts[0]; // Label at start
+            ctx.fillStyle = "white";
+            ctx.font = "12px Arial";
+            ctx.fillText("#" + (idx+1) + " (Outer)", center.x, center.y);
+        }
+
+        function drawPolygon(points, fillColor, strokeColor, closed) {
+            if (points.length === 0) return;
+
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+
+            if (closed) {
+                ctx.closePath();
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw vertices
+            ctx.fillStyle = strokeColor;
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function getCentroid(points) {
+            let x = 0, y = 0;
+            for (let i = 0; i < points.length; i++) {
+                x += points[i].x;
+                y += points[i].y;
+            }
+            return { x: x / points.length, y: y / points.length };
+        }
+
+        function generateCode() {
+            if (shapes.length === 0) {
+                output.value = "// No shapes drawn yet.";
+                return;
+            }
+
+            let code = `// --- 1. COPY HELPER FUNCTION (Put this in your class or outside) ---\n`;
+            code += `function createOuterWall(scene, points, thickness, flip) {
+    const bodies = [];
+    for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        if (len === 0) continue;
+        let nx = -dy / len;
+        let ny = dx / len;
+        if (flip) { nx = -nx; ny = -ny; }
+        const ex = nx * thickness;
+        const ey = ny * thickness;
+        const center = { x: (p1.x + p2.x + ex)/2, y: (p1.y + p2.y + ey)/2 };
+        const vertices = [
+            { x: p1.x - center.x, y: p1.y - center.y },
+            { x: p2.x - center.x, y: p2.y - center.y },
+            { x: p2.x + ex - center.x, y: p2.y + ey - center.y },
+            { x: p1.x + ex - center.x, y: p1.y + ey - center.y }
+        ];
+        bodies.push(scene.matter.add.fromVertices(center.x, center.y, vertices, { isStatic: true }));
+    }
+    return bodies;
+}\n\n`;
+
+            code += `// --- 2. PASTE INSIDE create() ---\n`;
+
+            shapes.forEach((shape, index) => {
+                const pointsStr = shape.points.map(p => `{x:${p.x}, y:${p.y}}`).join(',');
+
+                if (shape.isOuter) {
+                    code += `// Outer Wall #${index + 1}\n`;
+                    code += `createOuterWall(this, [${pointsStr}], ${wallThickness}, ${shape.flip});\n`;
+                } else {
+                    const center = getCentroid(shape.points);
+                    code += `// Inner Island #${index + 1}\n`;
+                    code += `this.matter.add.fromVertices(${Math.round(center.x)}, ${Math.round(center.y)}, [${pointsStr}], { isStatic: true });\n`;
+                }
+                code += `\n`;
+            });
+
+            output.value = code;
+        }
+
+        // Handle window resize roughly
+        window.addEventListener('resize', () => {
+            // Optional: resize logic
+        });
+
+    </script>
+</body>
+</html>
