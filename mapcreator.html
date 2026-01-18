@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top-Down Racer Track Designer Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; overflow: hidden; }
+        canvas { cursor: crosshair; image-rendering: pixelated; touch-action: none; }
+        .toolbar-scroll { scrollbar-width: thin; scrollbar-color: #475569 #1e293b; }
+        .active-tool { border-color: #3b82f6; background-color: #1e40af; }
+        .kbd-hint { background: #334155; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 10px; }
+        
+        #exportModal { display: none; }
+        #exportModal.active { display: flex; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans text-slate-200">
+
+    <!-- Header -->
+    <header class="p-3 bg-slate-900 border-b border-slate-700 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-bold tracking-tight text-blue-400">Track Designer <span class="text-xs text-slate-500 px-2 py-0.5 bg-slate-800 rounded">PRO</span></h1>
+        </div>
+        <div class="flex gap-2">
+            <button id="finalizePath" class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-xs font-bold rounded transition">New Path (Enter)</button>
+            <button id="exportPng" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-xs rounded transition">Export Image</button>
+            <button id="btnOpenExport" class="px-4 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded shadow-lg transition">Export JSON</button>
+            <button id="clearTrack" class="px-3 py-1 bg-rose-900/50 hover:bg-rose-800 text-xs rounded transition border border-rose-700">Clear</button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-72 bg-slate-900 p-4 border-r border-slate-700 flex flex-col gap-5 overflow-y-auto toolbar-scroll">
+            
+            <section>
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Global Config</h2>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <span class="text-[10px] text-slate-400">Snap</span>
+                        <input type="checkbox" id="snapToGrid" class="accent-blue-500">
+                    </label>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1 uppercase">Map Size</label>
+                        <select id="mapSize" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm outline-none">
+                            <option value="1024">1024x1024</option>
+                            <option value="2048" selected>2048x2048</option>
+                            <option value="4096">4096x4096</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1 uppercase">Car Size</label>
+                            <input type="number" id="carWidth" value="32" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1 uppercase">Lane Mult</label>
+                            <input type="number" id="laneMultiplier" step="0.5" value="4" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 text-center">Design Tools</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button data-tool="road" class="tool-btn active-tool p-2 border border-slate-700 rounded flex flex-col items-center hover:bg-slate-800 transition">
+                        <span class="text-xs">Road</span>
+                        <span class="text-[9px] text-slate-500 italic">Brush (Visuals)</span>
+                    </button>
+                    <button data-tool="start" class="tool-btn p-2 border border-slate-700 rounded flex flex-col items-center hover:bg-slate-800 transition">
+                        <span class="text-xs text-blue-400 font-bold">Start Pos</span>
+                        <span class="text-[9px] text-slate-500 italic">Spawn Point</span>
+                    </button>
+                    <button data-tool="barrier" class="tool-btn p-2 border border-slate-700 rounded flex flex-col items-center hover:bg-slate-800 transition">
+                        <span class="text-xs text-rose-400 font-bold">Barrier</span>
+                        <span class="text-[9px] text-slate-500 italic">Loop Logic</span>
+                    </button>
+                    <button data-tool="checkpoint" class="tool-btn p-2 border border-slate-700 rounded flex flex-col items-center hover:bg-slate-800 transition">
+                        <span class="text-xs text-amber-400 font-bold">Checkpoint</span>
+                        <span class="text-[9px] text-slate-500">Circle</span>
+                    </button>
+                    <button data-tool="ai" class="tool-btn p-2 border border-slate-700 rounded flex flex-col items-center hover:bg-slate-800 transition">
+                        <span class="text-xs text-emerald-400 font-bold">AI Path</span>
+                        <span class="text-[9px] text-slate-500 italic">Loop Logic</span>
+                    </button>
+                </div>
+            </section>
+
+            <div class="mt-auto space-y-2 border-t border-slate-800 pt-4 text-[10px] text-slate-500 uppercase font-medium">
+                <div class="flex justify-between"><span>New Path</span><span class="kbd-hint">ENTER</span></div>
+                <div class="flex justify-between"><span>Undo</span><span class="kbd-hint">CTRL+Z</span></div>
+                <div class="p-2 bg-blue-900/20 text-blue-400 rounded mt-2 normal-case leading-relaxed">
+                    <b>Note:</b> Road layer is excluded from JSON to save space. AI and Barriers loop automatically.
+                </div>
+            </div>
+        </aside>
+
+        <!-- Canvas -->
+        <main id="viewport" class="flex-1 bg-slate-950 relative overflow-hidden flex items-center justify-center">
+            <canvas id="trackCanvas"></canvas>
+            
+            <div class="absolute bottom-4 right-4 bg-slate-900/90 backdrop-blur-sm p-3 rounded-lg border border-slate-700 pointer-events-none flex gap-6 items-center shadow-2xl">
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Current Tool</p>
+                    <p id="toolDisplay" class="text-xs font-mono text-blue-400 uppercase">ROAD</p>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Position</p>
+                    <p id="coordDisplay" class="text-xs font-mono text-slate-300">X: 0 Y: 0</p>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Scale</p>
+                    <p id="zoomDisplay" class="text-xs font-mono text-slate-300">100%</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 items-center justify-center p-6">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="font-bold text-blue-400 uppercase tracking-wide">Track Logic JSON</h3>
+                <button id="btnCloseExport" class="text-slate-500 hover:text-white">&times; Close</button>
+            </div>
+            <div class="p-4 flex-1 overflow-hidden flex flex-col">
+                <p class="text-xs text-slate-400 mb-3 italic">Compact format (excluding road graphics) for game implementation:</p>
+                <textarea id="jsonOutput" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded p-4 font-mono text-xs text-emerald-400 outline-none resize-none scrollbar-thin"></textarea>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end gap-3">
+                <button id="btnCopyJson" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded font-bold text-sm transition">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+        const viewport = document.getElementById('viewport');
+        const modal = document.getElementById('exportModal');
+        const jsonOutput = document.getElementById('jsonOutput');
+        
+        let config = {
+            carW: 32,
+            laneMultiplier: 4,
+            mapSize: 2048,
+            zoom: 0.6,
+            offsetX: 0,
+            offsetY: 0,
+            tool: 'road',
+            isPanning: false,
+            isDrawing: false,
+            snap: false,
+            mouseX: 0,
+            mouseY: 0,
+            lastX: 0,
+            lastY: 0
+        };
+
+        let layers = {
+            road: [],
+            barriers: [],
+            checkpoints: [],
+            aiPaths: [],
+            startPoint: null
+        };
+
+        let activePath = null;
+
+        function initCanvas() {
+            canvas.width = config.mapSize;
+            canvas.height = config.mapSize;
+            config.offsetX = (viewport.clientWidth - config.mapSize * config.zoom) / 2;
+            config.offsetY = (viewport.clientHeight - config.mapSize * config.zoom) / 2;
+            render();
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            let x = (e.clientX - rect.left) / config.zoom;
+            let y = (e.clientY - rect.top) / config.zoom;
+            if (config.snap) {
+                x = Math.round(x / 32) * 32;
+                y = Math.round(y / 32) * 32;
+            }
+            return { x, y };
+        }
+
+        function render() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            const step = 64;
+            for(let x = 0; x <= canvas.width; x += step) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for(let y = 0; y <= canvas.height; y += step) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // Draw Roads (Brush - Visual Only)
+            layers.road.forEach(r => drawPath(r.points, '#334155', r.width, false, false));
+
+            // Draw AI Paths (Looped)
+            layers.aiPaths.forEach(p => {
+                drawPath(p.points, '#10b981', 4, true, true);
+                p.points.forEach(pt => drawNode(pt, '#10b981'));
+            });
+
+            // Draw Barriers (Looped)
+            layers.barriers.forEach(b => {
+                drawPath(b.points, '#f43f5e', 2, false, true);
+                b.points.forEach(pt => drawNode(pt, '#f43f5e', 3));
+            });
+
+            // Draw Checkpoints
+            layers.checkpoints.forEach((cp, idx) => {
+                ctx.beginPath();
+                ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                ctx.fill();
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(idx + 1, cp.x, cp.y + 4);
+            });
+
+            // Draw Start Point
+            if (layers.startPoint) {
+                ctx.save();
+                ctx.translate(layers.startPoint.x, layers.startPoint.y);
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-20, -10); ctx.lineTo(20, -10);
+                ctx.moveTo(-20, 10); ctx.lineTo(20, 10);
+                ctx.stroke();
+                ctx.fillStyle = '#3b82f6';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText("START", 0, -15);
+                ctx.restore();
+            }
+
+            // Ghost Line
+            if (activePath && activePath.points.length > 0 && config.tool !== 'road') {
+                const last = activePath.points[activePath.points.length - 1];
+                ctx.beginPath();
+                ctx.moveTo(last.x, last.y);
+                ctx.lineTo(config.mouseX, config.mouseY);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            canvas.style.transform = `translate(${config.offsetX}px, ${config.offsetY}px) scale(${config.zoom})`;
+            document.getElementById('zoomDisplay').innerText = Math.round(config.zoom * 100) + '%';
+        }
+
+        function drawPath(points, color, width, dashed = false, looped = false) {
+            if (points.length < 1) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            if (dashed) ctx.setLineDash([10, 5]);
+            ctx.moveTo(points[0].x, points[0].y);
+            for(let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+            if (looped && points.length > 1) ctx.lineTo(points[0].x, points[0].y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawNode(pt, color, size = 4) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function finalizePath() {
+            activePath = null;
+            render();
+        }
+
+        viewport.addEventListener('mousedown', e => {
+            if (e.button === 1 || (e.button === 0 && e.altKey)) {
+                config.isPanning = true;
+                config.lastX = e.clientX;
+                config.lastY = e.clientY;
+                return;
+            }
+
+            if (e.button !== 0) return;
+            const pos = getMousePos(e);
+
+            if (config.tool === 'road') {
+                config.isDrawing = true;
+                const newRoad = { points: [pos], width: config.carW * config.laneMultiplier };
+                layers.road.push(newRoad);
+                activePath = newRoad;
+            } else if (config.tool === 'start') {
+                layers.startPoint = { x: pos.x, y: pos.y };
+            } else if (config.tool === 'checkpoint') {
+                layers.checkpoints.push({ 
+                    x: pos.x, 
+                    y: pos.y, 
+                    radius: (config.carW * config.laneMultiplier) / 2 
+                });
+            } else {
+                if (!activePath) {
+                    const newPath = { points: [pos] };
+                    if (config.tool === 'barrier') layers.barriers.push(newPath);
+                    if (config.tool === 'ai') layers.aiPaths.push(newPath);
+                    activePath = newPath;
+                } else {
+                    activePath.points.push(pos);
+                }
+            }
+            render();
+        });
+
+        window.addEventListener('mousemove', e => {
+            const pos = getMousePos(e);
+            config.mouseX = pos.x;
+            config.mouseY = pos.y;
+            document.getElementById('coordDisplay').innerText = `X: ${Math.round(pos.x)} Y: ${Math.round(pos.y)}`;
+
+            if (config.isPanning) {
+                config.offsetX += e.clientX - config.lastX;
+                config.offsetY += e.clientY - config.lastY;
+                config.lastX = e.clientX;
+                config.lastY = e.clientY;
+                render();
+            } else if (config.isDrawing && config.tool === 'road' && activePath) {
+                const last = activePath.points[activePath.points.length - 1];
+                const d = Math.sqrt(Math.pow(pos.x - last.x, 2) + Math.pow(pos.y - last.y, 2));
+                if (d > 15) { // Thicker smoothing for visual-only road
+                    activePath.points.push(pos);
+                    render();
+                }
+            } else {
+                render();
+            }
+        });
+
+        window.addEventListener('mouseup', () => { 
+            config.isPanning = false; 
+            config.isDrawing = false; 
+            if (config.tool === 'road') activePath = null;
+        });
+
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            config.zoom = Math.min(Math.max(config.zoom * delta, 0.05), 4);
+            render();
+        }, { passive: false });
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-tool'));
+                btn.classList.add('active-tool');
+                config.tool = btn.dataset.tool;
+                document.getElementById('toolDisplay').innerText = config.tool;
+                finalizePath();
+            });
+        });
+
+        document.getElementById('snapToGrid').addEventListener('change', e => config.snap = e.target.checked);
+        document.getElementById('carWidth').addEventListener('change', e => config.carW = parseInt(e.target.value));
+        document.getElementById('laneMultiplier').addEventListener('change', e => config.laneMultiplier = parseFloat(e.target.value));
+        document.getElementById('mapSize').addEventListener('change', e => { config.mapSize = parseInt(e.target.value); initCanvas(); });
+        document.getElementById('clearTrack').addEventListener('click', () => { if(confirm("Clear current design?")) { Object.keys(layers).forEach(k => Array.isArray(layers[k]) ? layers[k] = [] : layers[k] = null); finalizePath(); }});
+        document.getElementById('finalizePath').addEventListener('click', finalizePath);
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Enter') finalizePath();
+            if (e.ctrlKey && e.key === 'z') {
+                if (activePath && activePath.points.length > 0) activePath.points.pop();
+                else {
+                    const l = layers[config.tool === 'checkpoint' ? 'checkpoints' : config.tool];
+                    if (Array.isArray(l)) l.pop();
+                }
+                render();
+            }
+        });
+
+        document.getElementById('btnOpenExport').addEventListener('click', () => {
+            const data = {
+                v: 1.0,
+                config: [config.mapSize, config.carW, config.laneMultiplier],
+                start: layers.startPoint ? [Math.round(layers.startPoint.x), Math.round(layers.startPoint.y)] : null,
+                barriers: layers.barriers.map(b => b.points.map(p => [Math.round(p.x), Math.round(p.y)])),
+                ai: layers.aiPaths.map(p => p.points.map(p => [Math.round(p.x), Math.round(p.y)])),
+                cps: layers.checkpoints.map(c => [Math.round(c.x), Math.round(c.y), Math.round(c.radius)])
+            };
+            // Minified JSON export
+            jsonOutput.value = JSON.stringify(data);
+            modal.classList.add('active');
+        });
+
+        document.getElementById('btnCloseExport').addEventListener('click', () => modal.classList.remove('active'));
+
+        document.getElementById('btnCopyJson').addEventListener('click', () => {
+            jsonOutput.select();
+            document.execCommand('copy');
+            const btn = document.getElementById('btnCopyJson');
+            btn.innerText = "COPIED!";
+            btn.classList.replace('bg-blue-600', 'bg-emerald-600');
+            setTimeout(() => {
+                btn.innerText = "Copy to Clipboard";
+                btn.classList.replace('bg-emerald-600', 'bg-blue-600');
+            }, 2000);
+        });
+
+        document.getElementById('exportPng').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'racetrack.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        window.onload = initCanvas;
+    </script>
+</body>
+</html>
