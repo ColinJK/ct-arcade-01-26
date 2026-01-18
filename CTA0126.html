@@ -3,800 +3,846 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Breakline - P2P Arcade Racer</title>
-    
-    <!-- External Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
+    <title>Checkpoint Tavern: Party Edition</title>
     <style>
+        :root {
+            /* Dimmed Arcade Palette */
+            --bg-body: #cfcfcf; 
+            --bg-card: #e6e6e6;
+            --text-main: #2b2b2b;
+            --text-muted: #555555;
+            
+            /* The 4 Buttons */
+            --btn-red: #d32f2f;
+            --btn-yellow: #fbc02d;
+            --btn-blue: #1976d2;
+            --btn-green: #388e3c;
+            
+            --border-color: #9e9e9e;
+            --shadow: 4px 4px 0px rgba(0,0,0,0.15);
+            --radius: 8px;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--bg-body);
+            background-image: radial-gradient(#b0b0b0 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text-main);
             margin: 0;
-            background-color: #050505;
-            background-image: url('https://colinjk.github.io/ct-arcade-01-26/menu-background.png');
-            background-size: cover;
-            background-position: center;
-            color: #ffffff;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
+            padding: 0;
+            line-height: 1.6;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 280px;
+            background-color: #e0e0e0;
+            border-right: 4px solid var(--text-main);
+            padding: 2rem 1.5rem;
+            position: fixed;
             height: 100vh;
-            width: 100vw;
+            overflow-y: auto;
+            top: 0;
+            left: 0;
+            z-index: 100;
         }
 
-        #game-container {
-            position: relative;
-            box-shadow: 0 0 60px rgba(0,0,0,0.9);
-            background: rgba(0, 0, 0, 0.95);
-            border: 1px solid #1a1a1a;
-            max-width: 100%;
-            max-height: 100%;
-        }
-
-        #ui-layer {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            background: rgba(10, 10, 10, 0.98);
-            padding: 2.5rem;
-            border-radius: 16px;
-            border: 1px solid #00bcd4;
-            z-index: 10;
-            min-width: 340px;
-            box-shadow: 0 0 40px rgba(0, 188, 212, 0.15);
-        }
-
-        #ui-title-container {
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: center;
-        }
-
-        #ui-title-img {
-            max-width: 300px;
-            height: auto;
-            filter: drop-shadow(0 0 8px rgba(0, 188, 212, 0.6));
-        }
-
-        #loading-msg {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-            color: #00bcd4;
-            letter-spacing: 2px;
+        .sidebar h1 {
+            font-size: 1.3rem;
+            color: var(--text-main);
             text-transform: uppercase;
-        }
-
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            z-index: 5;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            pointer-events: none;
-        }
-
-        #hud > * { pointer-events: auto; }
-
-        .stat-box {
-            background: rgba(0, 0, 0, 0.85);
-            padding: 12px 20px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
-            font-weight: 800;
-            color: #fff;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            letter-spacing: 1px;
-        }
-
-        input[type="text"] {
-            padding: 14px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #111;
-            color: white;
-            font-size: 16px;
-            margin-bottom: 12px;
-            width: 260px;
-            display: block;
-            margin: 10px auto;
-            text-align: center;
-            transition: border-color 0.3s;
-        }
-
-        button {
-            padding: 14px 28px;
-            border-radius: 8px;
-            border: none;
-            background: #00bcd4;
-            color: #000;
             font-weight: 900;
-            cursor: pointer;
-            font-size: 16px;
+            text-align: center;
+            border: 4px solid var(--text-main);
+            padding: 15px 5px;
+            margin-bottom: 2rem;
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            box-shadow: var(--shadow);
+            letter-spacing: -1px;
+            line-height: 1.2;
+        }
+
+        .nav-group-title {
+            font-size: 0.8rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            margin: 5px;
+            color: var(--text-muted);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            padding-left: 0.5rem;
+            border-bottom: 2px solid #ccc;
         }
 
-        button:hover { background: #00e5ff; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 188, 212, 0.4); }
-        .btn-solo { background: #4CAF50; color: white; }
-        .btn-danger { background: #f44336; color: white; }
-        
-        .hidden { display: none !important; }
-
-        label { display: block; font-size: 11px; color: #666; margin-top: 12px; text-transform: uppercase; font-weight: bold; }
-
-        #settings-panel {
-            background: rgba(25, 25, 25, 0.5);
-            border: 1px solid #222;
-            padding: 1rem;
-            border-radius: 12px;
-            margin-top: 15px;
+        .nav-link {
+            display: block;
+            padding: 0.8rem 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: 2px solid transparent;
+            font-weight: 700;
+            background: rgba(255,255,255,0.4);
         }
 
-        input[type="range"] {
+        .nav-link:hover {
+            background-color: white;
+            border-color: var(--text-main);
+            transform: translateX(2px);
+        }
+
+        .nav-link.active {
+            background-color: var(--text-main);
+            color: #e0e0e0;
+            box-shadow: var(--shadow);
+        }
+
+        /* Specific Button Accents for Nav */
+        #nav-architect.active { background-color: var(--btn-blue); border-color: var(--btn-blue); }
+        #nav-mechanic.active { background-color: var(--btn-yellow); color: #222; border-color: var(--btn-yellow); }
+        #nav-vibe.active { background-color: var(--btn-red); border-color: var(--btn-red); }
+        #nav-producer.active { background-color: var(--btn-green); border-color: var(--btn-green); }
+
+        .panic-btn {
+            margin-top: 2rem;
+            background: #444;
+            color: white;
+            text-align: center;
+        }
+        .panic-btn:hover { background: var(--btn-red); color: white; }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            padding: 3rem 5rem;
+            max-width: 1100px;
             width: 100%;
-            accent-color: #00bcd4;
-            cursor: pointer;
         }
 
-        .car-selector {
+        .page-section {
+            display: none;
+            animation: slideUp 0.4s ease-out;
+        }
+        .page-section.active { display: block; }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header { margin-bottom: 3rem; text-align: center; }
+        h1 { font-size: 2.5rem; margin: 0; color: var(--text-main); font-weight: 900; letter-spacing: -1px; text-transform: uppercase; }
+        h2 { color: var(--text-main); margin-top: 2.5rem; border-bottom: 3px solid #bbb; padding-bottom: 0.5rem; }
+        
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 2px solid var(--text-main);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        .card h3 { margin-top: 0; font-weight: 800; font-size: 1.2rem; }
+
+        .role-tagline {
+            display: block;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-style: italic;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        /* Sync Banners */
+        .sync-banner {
+            background: var(--text-main);
+            color: #e0e0e0;
+            padding: 1.5rem;
+            margin: 3rem 0;
+            border-radius: var(--radius);
+            text-align: center;
+            border: 4px solid var(--btn-yellow);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .sync-banner::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 10px;
+            background: repeating-linear-gradient(45deg, var(--btn-yellow), var(--btn-yellow) 20px, #333 20px, #333 40px);
+        }
+
+        .sync-banner h3 { margin: 0; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Checklists */
+        .checklist { list-style: none; padding: 0; margin-top: 1rem; }
+        
+        .checklist li {
+            background: #f4f4f4;
+            margin-bottom: 0.8rem;
+            padding: 1rem;
+            border-radius: 4px;
             display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 15px 0;
+            align-items: flex-start;
+            border: 1px solid #ccc;
+            transition: all 0.2s;
         }
-        .car-option {
-            border: 2px solid #333;
-            border-radius: 8px;
-            padding: 10px;
+        
+        .checklist li:hover { border-color: #666; background: #fff; }
+        
+        .checklist input[type="checkbox"] {
+            margin-right: 1rem;
+            margin-top: 0.3rem;
+            transform: scale(1.4);
             cursor: pointer;
-            background: #111;
-            width: 60px;
+            accent-color: var(--btn-green);
         }
-        .car-option img { width: 100%; display: block; }
-        .car-option.selected { border-color: #00bcd4; background: #00bcd433; }
+        
+        .checklist label { cursor: pointer; flex: 1; font-weight: 600; font-size: 0.95rem; }
+        .checklist li.completed { opacity: 0.6; background: #ddd; }
+        .checklist li.completed label { text-decoration: line-through; }
+
+        /* Prompts */
+        .prompt-box {
+            background: #2b2b2b;
+            color: #50fa7b;
+            font-family: 'Consolas', monospace;
+            padding: 1.5rem;
+            border-radius: 4px;
+            position: relative;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            border: 2px solid #000;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px; right: 10px;
+            background: var(--btn-blue);
+            color: white;
+            border: 2px solid #000;
+            padding: 5px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        .copy-btn:hover { background: #4fa3ff; }
+
+        /* Discord Box */
+        .discord-box {
+            background: #5865F2;
+            color: white;
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 2px solid #000;
+        }
+
+        /* Voting Grid */
+        .voting-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .vote-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+
+        /* Creative Tips */
+        .creative-tip {
+            border-left: 4px solid var(--btn-yellow);
+            background: #fff8e1;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        .creative-tip strong { color: #d4a000; }
+        
+        /* Inspiration Dropdown */
+        details {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+        summary {
+            padding: 0.8rem;
+            cursor: pointer;
+            font-weight: bold;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+        .details-content { padding: 1rem; }
+        
+        /* Input Fields */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+        .style-input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid var(--btn-red);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .save-btn {
+            padding: 10px 20px;
+            background: var(--btn-red);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 1.5rem; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="loading-msg">Booting Systems...</div>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <h1>Checkpoint Tavern</h1>
         
-        <!-- HUD -->
-        <div id="hud" class="hidden">
-            <div>
-                <div id="lap-counter" class="stat-box">LAP: 1/3</div>
-            </div>
-            <button id="btn-quit" class="btn-danger">QUIT</button>
-        </div>
-    </div>
+        <div class="nav-group-title">The Gathering</div>
+        <a onclick="showPage('phase0')" class="nav-link active" id="nav-phase0">🗳️ Phase 0: The Vote</a>
+        <a onclick="showPage('setup')" class="nav-link" id="nav-setup">🎭 Role Assignment</a>
+        
+        <div class="nav-group-title">Player Cards</div>
+        <a onclick="showPage('architect')" class="nav-link" id="nav-architect">🛠️ The Architect</a>
+        <a onclick="showPage('mechanic')" class="nav-link" id="nav-mechanic">⚙️ The Mechanic</a>
+        <a onclick="showPage('vibe')" class="nav-link" id="nav-vibe">🎨 Vibe Artist</a>
+        <a onclick="showPage('producer')" class="nav-link" id="nav-producer">🎵 The Producer</a>
+        
+        <div class="nav-group-title">Group Sync</div>
+        <a onclick="showPage('sync1')" class="nav-link" id="nav-sync1">1️⃣ Sync: The Bones</a>
+        <a onclick="showPage('sync2')" class="nav-link" id="nav-sync2">2️⃣ Sync: The Merge</a>
+        <a onclick="showPage('sync25')" class="nav-link" id="nav-sync25">🐞 Sync: Bug Hunt</a>
+        <a onclick="showPage('sync3')" class="nav-link" id="nav-sync3">3️⃣ Sync: Launch</a>
 
-    <div id="ui-layer" class="hidden">
-        <div id="ui-title-container">
-            <img id="ui-title-img" src="https://colinjk.github.io/ct-arcade-01-26/game-title.png" alt="Neon Breakline">
+        <a onclick="showPage('panic')" class="nav-link panic-btn">🚨 PANIC BUTTON</a>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+
+        <!-- PAGE: PHASE 0 (THE VOTE) -->
+        <div id="page-phase0" class="page-section active">
+            <header>
+                <h1>Phase 0: The Tavern Vote</h1>
+                <p>Before any code is written, we must agree on the destination.</p>
+            </header>
+
+            <div class="card" style="border-color: var(--btn-yellow);">
+                <h3 style="color: #d4a000;">👑 Step 1: Nominate the Tavern Keeper</h3>
+                <p>Choose <strong>ONE</strong> person to be the "Tavern Keeper".</p>
+                <p><em>Their job is simple: When the group can't decide, they click the button. They hold the "Tie-Breaker Card".</em></p>
+            </div>
+
+            <h2>Step 2: The Consensus</h2>
+            <p>Discuss these 4 categories in Discord. The Tavern Keeper writes down the final winners.</p>
+            
+            <div class="voting-grid">
+                <div class="vote-card" style="border-top: 4px solid var(--btn-blue);">
+                    <h4>🕹️ GENRE</h4>
+                    <p style="font-size:0.9rem;">(e.g., Dungeon Crawler, Arena Shooter, Party Racer)</p>
+                    <input type="text" placeholder="Winner goes here..." style="width:100%; padding:5px;">
+                </div>
+                <div class="vote-card" style="border-top: 4px solid var(--btn-red);">
+                    <h4>🎨 VISUAL STYLE</h4>
+                    <p style="font-size:0.9rem;">(e.g., Neon Cyberpunk, Sketchy Pencil, 8-Bit Fantasy)</p>
+                    <input type="text" placeholder="Winner goes here..." style="width:100%; padding:5px;">
+                </div>
+                <div class="vote-card" style="border-top: 4px solid var(--btn-green);">
+                    <h4>🔊 AUDIO VIBE</h4>
+                    <p style="font-size:0.9rem;">(e.g., Heavy Metal, Lo-Fi Chill, Orchestral Panic)</p>
+                    <input type="text" placeholder="Winner goes here..." style="width:100%; padding:5px;">
+                </div>
+                <div class="vote-card" style="border-top: 4px solid var(--btn-yellow);">
+                    <h4>⚔️ 4-PLAYER MODE</h4>
+                    <p style="font-size:0.9rem;">(e.g., 4v4 Co-op, 1v3 Asymmetric, Free-for-all)</p>
+                    <input type="text" placeholder="Winner goes here..." style="width:100%; padding:5px;">
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button onclick="showPage('setup')" style="padding: 1rem 2rem; background: var(--text-main); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1.1rem; font-weight: bold;">We Have Decided » Go to Roles</button>
+            </div>
         </div>
-        <div id="ui-content"></div>
+
+        <!-- PAGE: SETUP (ROLES) -->
+        <div id="page-setup" class="page-section">
+            <header>
+                <h1>Assign Your Characters</h1>
+                <p>Pick your card. Read your outcome.</p>
+            </header>
+
+            <div class="discord-box">
+                <span style="font-size: 2.5rem;">🎙️</span>
+                <div>
+                    <strong>Tech Check:</strong><br>
+                    Ensure everyone has opened this manual on their own screen so they can follow their specific checklists.
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="card" onclick="showPage('architect')" style="cursor:pointer; border-color: var(--btn-blue);">
+                    <h3 style="color:var(--btn-blue)">🛠️ The Architect</h3>
+                    <span class="role-tagline" style="color:var(--btn-blue)">"The Code-Weaver: You spin the web that connects us all."</span>
+                    <p><strong>Your Job:</strong> Managing the Files. Integration. Hosting.</p>
+                </div>
+                <div class="card" onclick="showPage('mechanic')" style="cursor:pointer; border-color: var(--btn-yellow);">
+                    <h3 style="color:#d4a000">⚙️ The Mechanic</h3>
+                    <span class="role-tagline" style="color:#d4a000">"The Fun-Engine: You build the rules that make us scream."</span>
+                    <p><strong>Your Job:</strong> Game Design. Logic Rules. Balancing (Speed/Damage).</p>
+                </div>
+                <div class="card" onclick="showPage('vibe')" style="cursor:pointer; border-color: var(--btn-red);">
+                    <h3 style="color:var(--btn-red)">🎨 Vibe Artist</h3>
+                    <span class="role-tagline" style="color:var(--btn-red)">"The Pixel-Painter: You dream the world we play inside."</span>
+                    <p><strong>Your Job:</strong> Sprites. UI Design. Backgrounds. Consistency.</p>
+                </div>
+                <div class="card" onclick="showPage('producer')" style="cursor:pointer; border-color: var(--btn-green);">
+                    <h3 style="color:var(--btn-green)">🎵 The Producer</h3>
+                    <span class="role-tagline" style="color:var(--btn-green)">"The Hype-Master: You set the mood and tell the tale."</span>
+                    <p><strong>Your Job:</strong> Lore. Music. Sound Effects. The "Vibe Check".</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE: ARCHITECT -->
+        <div id="page-architect" class="page-section">
+            <header>
+                <h1 style="color:var(--btn-blue)">The Architect</h1>
+                <span class="role-tagline" style="text-align:center; font-size: 1.2rem;">"You spin the web that connects us all."</span>
+            </header>
+
+            <!-- PHASE 1 -->
+            <div class="card">
+                <h3>Phase 1: The Foundation (0:00 - 0:45)</h3>
+                <p>Your goal is a robust lobby. If the host leaves, the game must survive.</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="arch-1"><label for="arch-1">Open ChatGPT (Canvas) or Gemini.</label></li>
+                    <li><input type="checkbox" id="arch-2"><label for="arch-2">Paste the "Robust Multiplayer Prompt" (below).</label></li>
+                    <li><input type="checkbox" id="arch-3"><label for="arch-3">Create `index.html` locally. Test: Open 3 tabs.</label></li>
+                    <li><input type="checkbox" id="arch-4"><label for="arch-4">Close the Host tab. Does a new Host take over? (Host Migration).</label></li>
+                    <li><input type="checkbox" id="arch-5"><label for="arch-5"><strong>WAIT:</strong> Don't add gameplay logic yet. Wait for the Mechanic's rules.</label></li>
+                </ul>
+                
+                <div class="prompt-box">
+                    <button class="copy-btn" onclick="copyText(this)">Copy</button>
+Act as a senior game developer. Create a single-file HTML5 game using Phaser 3 and PeerJS.
+Target: 4-Player P2P Multiplayer with Lobby.
+Requirements:
+1. Scenes: 'Menu', 'Lobby', 'Game'.
+2. Menu: Simple "Start" button.
+3. Lobby:
+   - Host generates a Room ID.
+   - Clients enter Room ID to join.
+   - Show list of connected players (e.g., "Player 1 (Host)", "Player 2").
+   - "Start Game" button (Host only) moves everyone to Game scene.
+4. Networking (Critical):
+   - Handle Host Migration: If Host disconnects, the peer with the lowest PeerID becomes new Host.
+   - Sync all player positions.
+5. Visuals: Simple colored squares for now.
+6. Provide complete 'index.html'.
+                </div>
+            </div>
+
+            <!-- SYNC 1 -->
+            <div class="sync-banner">
+                <h3>🛑 STOP! Go to "Sync 1: The Bones"</h3>
+            </div>
+
+            <!-- PHASE 2 -->
+            <div class="card">
+                <h3>Phase 2: The Integration (0:45 - 1:30)</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="arch-6"><label for="arch-6"><strong>Check Discord:</strong> Get the Mechanic's "Ruleset".</label></li>
+                    <li><input type="checkbox" id="arch-7"><label for="arch-7"><strong>Check Discord:</strong> Get the Vibe Artist's Base64 Strings.</label></li>
+                    <li><input type="checkbox" id="arch-8"><label for="arch-8">Use the prompt below to combine them.</label></li>
+                </ul>
+                <div class="prompt-box">
+                    <button class="copy-btn" onclick="copyText(this)">Copy</button>
+I have the game rules and assets. Update the code:
+
+1. ASSETS:
+- Preload 'playerSprite' using Base64: "[PASTE STRING]"
+- Preload 'bgImg' using URL: "[PASTE URL]"
+- Replace player rectangles with 'playerSprite'.
+
+2. GAMEPLAY RULES (Implement these):
+- [PASTE MECHANIC'S RULESET HERE e.g. "Players move at speed 300"]
+- [PASTE MECHANIC'S WIN CONDITION HERE]
+                </div>
+            </div>
+            
+            <!-- SYNC 2 -->
+            <div class="sync-banner">
+                <h3>🛑 STOP! Go to "Sync 2: The Merge"</h3>
+            </div>
+            
+            <div class="card">
+                <h3>Phase 3: The Polish</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="arch-9"><label for="arch-9">Get "UI Text" from Producer (Game Title, Win Messages).</label></li>
+                    <li><input type="checkbox" id="arch-10"><label for="arch-10">Ask AI: "Update the Menu Title to '[NAME]' and add these Win Messages..."</label></li>
+                    <li><input type="checkbox" id="arch-11"><label for="arch-11">Deploy to GitHub Pages.</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: MECHANIC -->
+        <div id="page-mechanic" class="page-section">
+            <header>
+                <h1 style="color:#d4a000">The Mechanic</h1>
+                <span class="role-tagline" style="text-align:center; font-size: 1.2rem;">"You build the rules that make us scream."</span>
+            </header>
+
+            <div class="card">
+                <h3>Phase 1: The Design Document (0:00 - 0:45)</h3>
+                <p>You are the Game Designer. The Architect cannot code without your instructions.</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="mech-1"><label for="mech-1"><strong>Define the Goal:</strong> What are we trying to do? (Survive? Kill? Collect?)</label></li>
+                    <li><input type="checkbox" id="mech-2"><label for="mech-2"><strong>Define the Loss:</strong> How do players die/lose?</label></li>
+                    <li><input type="checkbox" id="mech-3"><label for="mech-3"><strong>Define the Controls:</strong> WASD? Arrow Keys? Mouse?</label></li>
+                    <li><input type="checkbox" id="mech-4"><label for="mech-4"><strong>Write the "Ruleset" for Discord:</strong> (See below)</label></li>
+                </ul>
+                <div class="creative-tip">
+                    <strong>📝 Template: Copy/Paste this to Discord for the Architect</strong><br><br>
+                    "ARCHITECT, HERE IS THE LOGIC:<br>
+                    1. Player Speed: [e.g. Fast/Slow]<br>
+                    2. Interaction: [e.g. When Player touches Enemy, Player restarts]<br>
+                    3. Win Condition: [e.g. First to 10 points wins]<br>
+                    4. Map: [e.g. No walls, wrap around screen]"
+                </div>
+            </div>
+
+            <div class="sync-banner">
+                <h3>🛑 STOP! Go to "Sync 1: The Bones"</h3>
+            </div>
+
+            <div class="card">
+                <h3>Phase 2: The Balance (0:45 - 1:30)</h3>
+                <p>The game is running, but is it fun?</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="mech-5"><label for="mech-5"><strong>Playtest:</strong> Is it too easy? Too hard?</label></li>
+                    <li><input type="checkbox" id="mech-6"><label for="mech-6"><strong>Tweak:</strong> Tell Architect "Increase Enemy Speed by 50%" or "Make hitbox smaller".</label></li>
+                    <li><input type="checkbox" id="mech-7"><label for="mech-7"><strong>Edge Cases:</strong> What happens if 2 players hit the goal at the exact same time?</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: VIBE ARTIST -->
+        <div id="page-vibe" class="page-section">
+            <header>
+                <h1 style="color:var(--btn-red)">Vibe Artist</h1>
+                <span class="role-tagline" style="text-align:center; font-size: 1.2rem;">"You dream the world we play inside."</span>
+            </header>
+
+            <!-- STYLE LOCKER -->
+            <div class="card" style="border-color: var(--btn-red);">
+                <h3>Step 0: The Style Contract</h3>
+                <p>Lock in the group's visual decision here. This will help you generate prompts.</p>
+                <div class="input-group">
+                    <input type="text" id="vibe-style-input" class="style-input" placeholder="e.g. '8-bit Cyberpunk with Neon Colors'">
+                    <button class="save-btn" onclick="saveVibeStyle()">LOCK IT IN</button>
+                </div>
+                <small id="style-saved-msg" style="color:green; display:none;">Style Locked! Prompts updated.</small>
+            </div>
+
+            <div class="card" style="margin-top: 1.5rem;">
+                <h3>Phase 1: The Asset Factory (0:00 - 0:45)</h3>
+                <p>Use your tools: <strong>DALL-E 3</strong> or <strong>Imagen</strong>. Use <strong>Remove.bg</strong> for characters.</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="vibe-1"><label for="vibe-1"><strong>The Player:</strong> Generate the main character (Base64).</label></li>
+                    <li><input type="checkbox" id="vibe-2"><label for="vibe-2"><strong>The Enemy/Hazard:</strong> Generate the spike/enemy sprite.</label></li>
+                    <li><input type="checkbox" id="vibe-3"><label for="vibe-3"><strong>The Background:</strong> 16:9 wallpaper (URL).</label></li>
+                    <li><input type="checkbox" id="vibe-4"><label for="vibe-4"><strong>The UI:</strong> "Start Button" & "Title Banner".</label></li>
+                </ul>
+                
+                <div class="creative-tip">
+                    <strong>🎨 Copy-Paste Prompts (Style Applied: <span class="vibe-style-display" style="font-weight:bold; color:var(--btn-red);">[Not Set]</span>)</strong>
+                    <br><br>
+                    <div class="prompt-box">
+                        <button class="copy-btn" onclick="copyText(this)">Copy</button>
+"Sprite sheet of a game character.
+Style: <span class="vibe-style-display">[STYLE]</span>.
+View: Top-down.
+Background: Solid white (for easy removal).
+Action: Idle pose and walking."
+                    </div>
+                </div>
+
+                <details>
+                    <summary>Need Inspiration? Click for Style Ideas</summary>
+                    <div class="details-content">
+                        <ul>
+                            <li><strong>16-Bit Arcade:</strong> "SNES video game style, pixel art, high contrast."</li>
+                            <li><strong>Vector Flat:</strong> "Minimalist, Kurzgesagt style, no shading, bright colors."</li>
+                            <li><strong>Hand Drawn:</strong> "Sketchy marker on paper, thick black outlines."</li>
+                        </ul>
+                    </div>
+                </details>
+            </div>
+
+            <div class="sync-banner">
+                <h3>🛑 STOP! Go to "Sync 1: The Bones"</h3>
+            </div>
+
+            <div class="card">
+                <h3>Phase 2: World Building</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="vibe-5"><label for="vibe-5"><strong>Lobby Art:</strong> Create a "Waiting Room" background.</label></li>
+                    <li><input type="checkbox" id="vibe-6"><label for="vibe-6"><strong>Particles:</strong> Ask Architect to use simple colored squares for explosions (Keep performance high).</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: PRODUCER -->
+        <div id="page-producer" class="page-section">
+            <header>
+                <h1 style="color:var(--btn-green)">The Producer</h1>
+                <span class="role-tagline" style="text-align:center; font-size: 1.2rem;">"The Hype-Master & Lore Keeper."</span>
+            </header>
+
+            <div class="card">
+                <h3>Phase 1: Lore & Atmosphere (0:00 - 0:45)</h3>
+                <p>You define the "Soul" of the game. Why are we here?</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="prod-1"><label for="prod-1"><strong>The Lore:</strong> Write 2 sentences. Why are we fighting?</label></li>
+                    <li><input type="checkbox" id="prod-2"><label for="prod-2"><strong>The Title:</strong> Name the game. Make it catchy.</label></li>
+                    <li><input type="checkbox" id="prod-3"><label for="prod-3"><strong>Lobby Text:</strong> Write 3 funny "Waiting for Players" messages.</label></li>
+                    <li><input type="checkbox" id="prod-4"><label for="prod-4"><strong>Music:</strong> Generate a "Lobby Loop" (Chill) and "Battle Track" (Fast).</label></li>
+                    <li><input type="checkbox" id="prod-5"><label for="prod-5"><strong>SFX:</strong> Find sounds for "Jump", "Hit", and "Win".</label></li>
+                </ul>
+                
+                <details>
+                    <summary>🎵 Need help with Suno? (Click to Expand)</summary>
+                    <div class="details-content">
+                        <strong>Suno Quick-Start:</strong>
+                        <ol>
+                            <li>Go to <a href="https://suno.com" target="_blank">Suno.com</a> -> "Create" -> "Custom Mode".</li>
+                            <li><strong>Lyrics:</strong> Check "Instrumental".</li>
+                            <li><strong>Style:</strong> "16-bit arcade, fast tempo, looping".</li>
+                            <li><strong>Action:</strong> Create -> Download MP3 -> Upload to Discord -> Copy Link.</li>
+                        </ol>
+                    </div>
+                </details>
+
+                <div class="creative-tip">
+                    <strong>📝 Paste to Discord:</strong>
+                    "GAME TITLE: [Name]<br>
+                    LOBBY TEXT: [Message 1], [Message 2]<br>
+                    WIN MESSAGE: 'Victory is yours!'<br>
+                    LOSE MESSAGE: 'You have been deleted.'"
+                </div>
+            </div>
+
+            <div class="sync-banner">
+                <h3>🛑 STOP! Go to "Sync 1: The Bones"</h3>
+            </div>
+
+            <div class="card">
+                <h3>Phase 2: QA Lead & Writing</h3>
+                <p>You are now the "Quality Assurance" Lead. It is your job to find bugs.</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="prod-6"><label for="prod-6"><strong>How to Play:</strong> Write 3 bullet points explaining controls.</label></li>
+                    <li><input type="checkbox" id="prod-7"><label for="prod-7"><strong>Bug Hunting:</strong> Play the game. Does the music loop? Do sounds play?</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: SYNC 1 -->
+        <div id="page-sync1" class="page-section">
+            <div class="sync-banner" style="margin-top:0;">
+                <h1>SYNC 1: THE BONES</h1>
+                <p>Time Check: 45 Minutes In</p>
+            </div>
+            <div class="card">
+                <h3>The Connection Test</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="s1-1"><label for="s1-1"><strong>Architect:</strong> Share screen. Show the "Lobby".</label></li>
+                    <li><input type="checkbox" id="s1-2"><label for="s1-2"><strong>Everyone:</strong> Does the list update when we join?</label></li>
+                    <li><input type="checkbox" id="s1-3"><label for="s1-3"><strong>Vibe Artist:</strong> Present your "Hero Sprite" concept. Do we love the style?</label></li>
+                    <li><input type="checkbox" id="s1-4"><label for="s1-4"><strong>Mechanic:</strong> Read your "Ruleset" out loud. Does everyone agree?</label></li>
+                    <li><input type="checkbox" id="s1-5"><label for="s1-5"><strong>Producer:</strong> Reveal the "Game Name".</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: SYNC 2 -->
+        <div id="page-sync2" class="page-section">
+            <div class="sync-banner" style="margin-top:0;">
+                <h1>SYNC 2: THE MERGE</h1>
+                <p>Time Check: 1 Hour 30 Minutes In</p>
+            </div>
+            <div class="card">
+                <h3>The Integration</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="s2-1"><label for="s2-1"><strong>Architect:</strong> Has implemented the Mechanic's Logic.</label></li>
+                    <li><input type="checkbox" id="s2-2"><label for="s2-2"><strong>Architect:</strong> Has swapped squares for Vibe Artist's Sprites.</label></li>
+                    <li><input type="checkbox" id="s2-3"><label for="s2-3"><strong>Vibe Artist:</strong> Vibe Check: Are sprites blurry? Is the background distracting? Give feedback.</label></li>
+                    <li><input type="checkbox" id="s2-4"><label for="s2-4"><strong>Producer:</strong> Audio Mix Check: Is the music too loud compared to SFX?</label></li>
+                    <li><input type="checkbox" id="s2-5"><label for="s2-5"><strong>Playtest:</strong> Everyone join. Try to break it.</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: SYNC 2.5 (BUG HUNT) -->
+        <div id="page-sync25" class="page-section">
+             <div class="sync-banner" style="margin-top:0; border-color: var(--btn-red);">
+                <h1>SYNC 2.5: THE BUG HUNT</h1>
+                <p>Time Check: 2 Hours 15 Minutes In</p>
+            </div>
+            <div class="card">
+                <h3>QA Session (Led by Producer)</h3>
+                <p>Everyone stops working. Everyone plays the game for 15 minutes straight.</p>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="s25-1"><label for="s25-1"><strong>Test 1:</strong> What happens if 4 players spam keys at once?</label></li>
+                    <li><input type="checkbox" id="s25-2"><label for="s25-2"><strong>Test 2:</strong> What happens if someone refreshes their page?</label></li>
+                    <li><input type="checkbox" id="s25-3"><label for="s25-3"><strong>Test 3:</strong> Is the "Win Condition" actually triggering?</label></li>
+                    <li><input type="checkbox" id="s25-4"><label for="s25-4"><strong>Producer:</strong> Write down the Top 3 Bugs. Hand list to Architect.</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: SYNC 3 -->
+        <div id="page-sync3" class="page-section">
+            <div class="sync-banner" style="margin-top:0;">
+                <h1>SYNC 3: LAUNCH</h1>
+                <p>Time Check: 2 Hours 45 Minutes In</p>
+            </div>
+            <div class="card">
+                <h3>Deployment</h3>
+                <ul class="checklist">
+                    <li><input type="checkbox" id="s3-1"><label for="s3-1"><strong>Vibe Artist:</strong> Final Polish Check. Any visual glitches?</label></li>
+                    <li><input type="checkbox" id="s3-2"><label for="s3-2"><strong>Architect:</strong> GitHub Repo -> Upload `index.html`.</label></li>
+                    <li><input type="checkbox" id="s3-3"><label for="s3-3"><strong>Architect:</strong> Settings -> Pages -> Deploy from Main.</label></li>
+                    <li><input type="checkbox" id="s3-4"><label for="s3-4"><strong>Everyone:</strong> Share the link. High five.</label></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PAGE: PANIC BUTTON -->
+        <div id="page-panic" class="page-section">
+            <header>
+                <h1 style="color:var(--btn-red)">🚨 PANIC ROOM</h1>
+            </header>
+
+            <div class="card">
+                <h3 style="color:var(--btn-red)">Problem: "PeerJS Host Migration is failing!"</h3>
+                <p><strong>The Fix:</strong> Simplify. Remove migration.</p>
+                <p>If the host leaves, the game ends. That is acceptable for a 3-hour jam. Don't waste hour 2 debugging mesh networking.</p>
+            </div>
+
+            <div class="card" style="margin-top:1rem;">
+                <h3 style="color:var(--btn-yellow)">Problem: "Lobby works but Game is black!"</h3>
+                <p><strong>The Fix:</strong> Check Scene Transition.</p>
+                <p>Ask AI: "Ensure the 'Start Game' button correctly stops the Lobby Scene and starts the Game Scene, passing the socket connection."</p>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        // --- HELPERS ---
-        window.copyToClipboard = (text) => {
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-        };
-
-        function createChainWalls(scene, points, thickness, flip, label = 'wall') {
-            const bodies = [];
-            for (let i = 0; i < points.length; i++) {
-                const p1 = points[i];
-                const p2 = points[(i + 1) % points.length];
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const len = Math.sqrt(dx*dx + dy*dy);
-                if (len === 0) continue;
-                let nx = -dy / len;
-                let ny = dx / len;
-                if (flip) { nx = -nx; ny = -ny; }
-                const center = { x: (p1.x + p2.x + nx * thickness)/2, y: (p1.y + p2.y + ny * thickness)/2 };
-                const vertices = [
-                    { x: p1.x - center.x, y: p1.y - center.y },
-                    { x: p2.x - center.x, y: p2.y - center.y },
-                    { x: p2.x + nx * thickness - center.x, y: p2.y + ny * thickness - center.y },
-                    { x: p1.x + nx * thickness - center.x, y: p1.y + ny * thickness - center.y }
-                ];
-                bodies.push(scene.matter.add.fromVertices(center.x, center.y, vertices, { 
-                    isStatic: true, restitution: 0.1, friction: 0, frictionStatic: 0, label: label
-                }));
-            }
-            return bodies;
+        // Navigation Logic
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById('page-' + pageId).classList.add('active');
+            
+            const nav = document.getElementById('nav-' + pageId);
+            if(nav) nav.classList.add('active');
+            
+            window.scrollTo(0,0);
         }
 
-        // --- GLOBAL STATE ---
-        const LAPS_TO_WIN = 3;
-        let savedVol = localStorage.getItem('neon-volume');
-        let initialVolume = 0.1;
-        if (savedVol !== null) {
-            let parsed = parseFloat(savedVol);
-            if (!isNaN(parsed) && isFinite(parsed)) initialVolume = parsed;
-        }
-
-        // GLOBAL SPEED FACTOR - Locked
-        const GLOBAL_SPEED_FACTOR = 0.05;
-
-        const Net = {
-            peer: null,
-            myId: null,
-            creatorId: null,
-            playerName: localStorage.getItem('p2p-racer-name') || "Racer_" + Math.floor(Math.random()*999),
-            carType: localStorage.getItem('p2p-racer-car') || 'car1',
-            volume: initialVolume,
-            connections: {},
-            players: {},
-            isHost: false,
-            isSolo: false,
-            ready: false,
-            gameOver: false
-        };
-
-        const TRACK_POINTS_INNER = [
-            {x:313, y:277},{x:745, y:280},{x:766, y:323},{x:731, y:370},{x:497, y:515},
-            {x:486, y:604},{x:545, y:672},{x:734, y:677},{x:786, y:690},{x:766, y:720},
-            {x:314, y:729},{x:266, y:705},{x:302, y:641},{x:452, y:537},{x:507, y:496},
-            {x:568, y:419},{x:561, y:372},{x:507, y:333},{x:418, y:320},{x:338, y:322},
-            {x:290, y:314},{x:302, y:297}
-        ];
-
-        const TRACK_POINTS_OUTER = [
-            {x:296, y:193},{x:748, y:189},{x:822, y:213},{x:857, y:269},{x:867, y:369},
-            {x:828, y:432},{x:647, y:548},{x:824, y:569},{x:883, y:612},{x:912, y:724},
-            {x:899, y:790},{x:828, y:829},{x:269, y:844},{x:189, y:828},{x:154, y:775},
-            {x:148, y:690},{x:167, y:588},{x:380, y:437},{x:188, y:392},{x:171, y:314},
-            {x:181, y:243},{x:216, y:200},{x:269, y:191}
-        ];
-
-        window.onload = () => {
-            if (typeof Phaser === 'undefined') {
-                document.getElementById('loading-msg').innerText = "Phaser Load Error";
-                return;
-            }
-            startGame();
-        };
-
-        function startGame() {
-            class NetworkManager {
-                constructor(sceneEventBus) { this.events = sceneEventBus; }
-                init() {
-                    if (Net.peer) return;
-                    Net.peer = new Peer(null, { debug: 1 });
-                    Net.peer.on('open', (id) => {
-                        if (!Net.isSolo) {
-                            if (!Net.myId || Net.myId.startsWith('local_')) Net.myId = id;
-                        }
-                        if (!Net.players[id]) Net.players[id] = { id, laps: 0 };
-                        Object.assign(Net.players[id], { name: Net.playerName, carType: Net.carType });
-                        this.events.emit('net-ready', id);
-                    });
-                    Net.peer.on('connection', (conn) => this.handleConnection(conn));
+        // Checklist Local Storage Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(box => {
+                const saved = localStorage.getItem('checkpointTavern_' + box.id);
+                if (saved === 'true') {
+                    box.checked = true;
+                    box.closest('li').classList.add('completed');
                 }
-                connectToPeer(hostId) {
-                    if(!Net.peer || hostId === Net.myId) return;
-                    Net.creatorId = hostId;
-                    const conn = Net.peer.connect(hostId);
-                    this.handleConnection(conn);
-                }
-                handleConnection(conn) {
-                    conn.on('open', () => {
-                        Net.connections[conn.peer] = conn;
-                        conn.send({ type: 'HELLO', player: Net.players[Net.myId], creatorId: Net.creatorId });
-                        if (Object.keys(Net.players).length > 1) {
-                            conn.send({ type: 'PEER_LIST', list: Object.keys(Net.players), creatorId: Net.creatorId });
-                        }
-                        this.updateHostStatus();
-                        this.events.emit('player-updated');
-                    });
-                    conn.on('data', (data) => this.handleData(conn.peer, data));
-                    conn.on('close', () => this.removePlayer(conn.peer));
-                    conn.on('error', () => this.removePlayer(conn.peer));
-                }
-                handleData(senderId, data) {
-                    switch(data.type) {
-                        case 'HELLO':
-                            if (data.creatorId && !Net.creatorId) Net.creatorId = data.creatorId;
-                            if (!Net.players[senderId]) Net.players[senderId] = { id: senderId, laps: 0 };
-                            Object.assign(Net.players[senderId], data.player);
-                            this.updateHostStatus();
-                            this.events.emit('player-updated');
-                            break;
-                        case 'PEER_LIST':
-                            if (data.creatorId && !Net.creatorId) Net.creatorId = data.creatorId;
-                            data.list.forEach(id => (id !== Net.myId && !Net.connections[id]) && this.connectToPeer(id));
-                            break;
-                        case 'START_GAME': this.events.emit('start-game'); break;
-                        case 'GAME_UPDATE': if (Net.players[senderId]) Object.assign(Net.players[senderId], data); break;
-                        case 'RACE_FINISHED': this.events.emit('race-finished', data.winnerId); break;
-                        case 'RESET_TO_LOBBY': this.events.emit('reset-to-lobby'); break;
-                    }
-                }
-                broadcast(data) {
-                    if (Net.isSolo) return;
-                    Object.values(Net.connections).forEach(c => c.open && c.send(data));
-                }
-                removePlayer(id) {
-                    delete Net.players[id];
-                    delete Net.connections[id];
-                    this.updateHostStatus();
-                    this.events.emit('player-left', id);
-                    this.events.emit('player-updated');
-                }
-                updateHostStatus() {
-                    const allIds = Object.keys(Net.players).sort();
-                    if (Net.creatorId && Net.players[Net.creatorId]) {
-                        Net.isHost = (Net.myId === Net.creatorId);
+                box.addEventListener('change', () => {
+                    localStorage.setItem('checkpointTavern_' + box.id, box.checked);
+                    if(box.checked) {
+                        box.closest('li').classList.add('completed');
                     } else {
-                        const newHostId = allIds[0];
-                        if (Net.creatorId !== newHostId) { Net.creatorId = newHostId; }
-                        Net.isHost = (Net.myId === Net.creatorId);
+                        box.closest('li').classList.remove('completed');
                     }
-                }
+                });
+            });
+            
+            // Load Saved Vibe Style
+            const savedStyle = localStorage.getItem('vibeStyle');
+            if (savedStyle) {
+                document.getElementById('vibe-style-input').value = savedStyle;
+                updateStylePlaceholders(savedStyle);
             }
+        });
 
-            const eventBus = new Phaser.Events.EventEmitter();
-            const network = new NetworkManager(eventBus);
+        // Save Vibe Style
+        function saveVibeStyle() {
+            const style = document.getElementById('vibe-style-input').value;
+            localStorage.setItem('vibeStyle', style);
+            document.getElementById('style-saved-msg').style.display = 'block';
+            setTimeout(() => document.getElementById('style-saved-msg').style.display = 'none', 2000);
+            updateStylePlaceholders(style);
+        }
 
-            class MenuScene extends Phaser.Scene {
-                constructor() { super('Menu'); }
-                preload() {
-                    this.load.image('car1', 'https://colinjk.github.io/ct-arcade-01-26/car1-sprite.png');
-                    this.load.image('car2', 'https://colinjk.github.io/ct-arcade-01-26/car2-sprite.png');
-                    this.load.image('car3', 'https://colinjk.github.io/ct-arcade-01-26/car3-sprite.png');
-                    this.load.image('track_img', 'https://colinjk.github.io/ct-arcade-01-26/track.png');
-                    this.load.audio('bgm', 'https://colinjk.github.io/ct-arcade-01-26/bg-music.wav');
-                    this.load.audio('accel', 'https://colinjk.github.io/ct-arcade-01-26/accel.wav');
-                }
-                create() {
-                    document.getElementById('loading-msg').style.display = 'none';
-                    document.body.style.backgroundImage = "url('https://colinjk.github.io/ct-arcade-01-26/menu-background.png')";
-                    
-                    if (!Net.isSolo) network.init();
-                    
-                    Net.ready = true;
-                    Net.isSolo = false;
-                    Net.gameOver = false;
-                    this.sound.volume = Net.volume;
-                    document.getElementById('ui-layer').classList.remove('hidden');
-                    this.renderMenu(document.getElementById('ui-content'));
-                }
-                renderMenu(container) {
-                    container.innerHTML = `
-                        <label>YOUR NAME</label>
-                        <input type="text" id="inp-name" value="${Net.playerName}" maxlength="12">
-                        <label>CHOOSE YOUR CAR</label>
-                        <div class="car-selector">
-                            <div class="car-option ${Net.carType === 'car1' ? 'selected' : ''}" data-car="car1"><img src="https://colinjk.github.io/ct-arcade-01-26/car1-sprite.png"></div>
-                            <div class="car-option ${Net.carType === 'car2' ? 'selected' : ''}" data-car="car2"><img src="https://colinjk.github.io/ct-arcade-01-26/car2-sprite.png"></div>
-                            <div class="car-option ${Net.carType === 'car3' ? 'selected' : ''}" data-car="car3"><img src="https://colinjk.github.io/ct-arcade-01-26/car3-sprite.png"></div>
-                        </div>
-                        <div style="display:flex; justify-content:center; flex-wrap:wrap;">
-                            <button id="btn-solo" class="btn-solo">Practice (Solo)</button>
-                            <button id="btn-create">Create Lobby</button>
-                        </div>
-                        <input type="text" id="inp-room" placeholder="Paste ID here">
-                        <button id="btn-join" style="width:100%;">Join Lobby</button>
-                        <div id="settings-panel">
-                            <label>VOLUME (${Math.round(Net.volume * 100)}%)</label>
-                            <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="${Net.volume}">
-                        </div>
-                    `;
-                    const volSlider = document.getElementById('vol-slider');
-                    volSlider.oninput = (e) => {
-                        Net.volume = parseFloat(e.target.value);
-                        this.sound.volume = Net.volume;
-                        localStorage.setItem('neon-volume', Net.volume);
-                        volSlider.previousElementSibling.innerText = `VOLUME (${Math.round(Net.volume * 100)}%)`;
-                    };
-                    container.querySelectorAll('.car-option').forEach(opt => {
-                        opt.onclick = () => {
-                            container.querySelectorAll('.car-option').forEach(o => o.classList.remove('selected'));
-                            opt.classList.add('selected');
-                            Net.carType = opt.dataset.car;
-                        };
-                    });
-                    document.getElementById('btn-solo').onclick = () => {
-                        Net.isSolo = true;
-                        if (Net.peer) { Net.peer.destroy(); Net.peer = null; }
-                        Net.myId = 'player_solo_' + Math.floor(Math.random()*9999);
-                        Net.players = {}; 
-                        this.saveSettings();
-                        document.getElementById('ui-layer').classList.add('hidden');
-                        this.scene.start('Game');
-                        this.scene.launch('HUD'); // Launch HUD
-                    };
-                    document.getElementById('btn-create').onclick = () => { this.saveSettings(); Net.creatorId = Net.myId; this.scene.start('Lobby'); };
-                    document.getElementById('btn-join').onclick = () => {
-                        const room = document.getElementById('inp-room').value.trim();
-                        if (room) { this.saveSettings(); network.connectToPeer(room); this.scene.start('Lobby'); }
-                    };
-                }
-                saveSettings() {
-                    const name = document.getElementById('inp-name').value.trim() || "Racer";
-                    Net.playerName = name;
-                    localStorage.setItem('p2p-racer-name', name);
-                    localStorage.setItem('p2p-racer-car', Net.carType);
-                    if (!Net.players[Net.myId]) Net.players[Net.myId] = { id: Net.myId, laps: 0 };
-                    Net.players[Net.myId].name = name;
-                    Net.players[Net.myId].carType = Net.carType;
-                }
-            }
+        function updateStylePlaceholders(style) {
+            document.querySelectorAll('.vibe-style-display').forEach(span => {
+                span.innerText = style;
+                span.style.color = '#333';
+            });
+        }
 
-            class LobbyScene extends Phaser.Scene {
-                constructor() { super('Lobby'); }
-                create() {
-                    const ui = document.getElementById('ui-layer');
-                    ui.classList.remove('hidden');
-                    const content = document.getElementById('ui-content');
-                    this.render(content);
-                    eventBus.on('player-updated', () => this.render(content));
-                    eventBus.on('start-game', () => this.startGame());
-                }
-                render(container) {
-                    const hostId = Net.creatorId;
-                    let html = `<h2 style="color:#00bcd4; margin-top:0;">LOBBY</h2>
-                    <div style="margin-bottom:15px; background:#111; padding:12px; border-radius:8px; border:1px solid #222;">
-                        <span style="color:#666; font-size:10px;">ROOM ID:</span> <b style="color:#00bcd4;">${hostId || '...'}</b>
-                        <button onclick="window.copyToClipboard('${hostId}')" style="padding:4px 8px; font-size:10px; background:#333; margin-left:10px;">COPY</button>
-                    </div><div style="text-align:left; background:#000; padding:10px; border-radius:8px; border:1px solid #1a1a1a;">`;
-                    Object.values(Net.players).forEach(p => {
-                        html += `<div style="padding:8px; border-bottom:1px solid #111; display:flex; justify-content:space-between; align-items:center;">
-                            <span>● ${p.name || 'Unknown'}</span>
-                            <img src="https://colinjk.github.io/ct-arcade-01-26/${p.carType}-sprite.png" style="height:20px;">
-                        </div>`;
-                    });
-                    html += `</div>`;
-                    if (Net.isHost) html += `<button id="btn-start" style="margin-top:20px; width:100%; background:#4CAF50;">START RACE</button>`;
-                    container.innerHTML = html;
-                    const b = document.getElementById('btn-start');
-                    if (b) b.onclick = () => { network.broadcast({ type: 'START_GAME' }); this.startGame(); };
-                }
-                startGame() {
-                    document.getElementById('ui-layer').classList.add('hidden');
-                    this.scene.start('Game');
-                    this.scene.launch('HUD');
-                }
-            }
-
-            // --- HUD SCENE (MINIMAP) ---
-            class HUDScene extends Phaser.Scene {
-                constructor() { super('HUD'); }
-                create() {
-                    // Minimap Config
-                    this.mapSize = 180;
-                    this.mapScale = 0.2;
-                    this.mapX = this.cameras.main.width - this.mapSize - 20;
-                    this.mapY = this.cameras.main.height - this.mapSize - 20;
-
-                    // Speedometer Text
-                    this.speedText = this.add.text(this.mapX, this.mapY - 25, '0 KM/H', { 
-                        font: '16px "Segoe UI", Arial', 
-                        fill: '#00bcd4', 
-                        fontWeight: '900',
-                        stroke: '#000000',
-                        strokeThickness: 3
-                    });
-
-                    // Background
-                    const bg = this.add.graphics();
-                    bg.fillStyle(0x000000, 0.8);
-                    bg.fillRect(this.mapX, this.mapY, this.mapSize, this.mapSize);
-                    bg.lineStyle(2, 0x00bcd4, 1);
-                    bg.strokeRect(this.mapX, this.mapY, this.mapSize, this.mapSize);
-
-                    // Track Geometry
-                    const drawPath = (points, color) => {
-                        bg.lineStyle(2, color, 0.8);
-                        bg.beginPath();
-                        points.forEach((p, i) => {
-                            const mx = this.mapX + (p.x * this.mapScale);
-                            const my = this.mapY + (p.y * this.mapScale);
-                            if (i === 0) bg.moveTo(mx, my);
-                            else bg.lineTo(mx, my);
-                        });
-                        bg.closePath();
-                        bg.strokePath();
-                    };
-                    drawPath(TRACK_POINTS_INNER, 0x00bcd4);
-                    drawPath(TRACK_POINTS_OUTER, 0x00bcd4);
-
-                    this.dots = this.add.graphics();
-                }
-
-                update() {
-                    this.dots.clear();
-                    
-                    // Update Speedometer
-                    const myPlayer = Net.players[Net.myId];
-                    if (myPlayer && typeof myPlayer.speed === 'number') {
-                       // Scale speed to look like KM/H (arbitrary x20 multiplier)
-                       this.speedText.setText(Math.floor(myPlayer.speed * 20) + ' KM/H');
-                    }
-
-                    // Update Dots
-                    Object.values(Net.players).forEach(p => {
-                        if (typeof p.x !== 'undefined' && typeof p.y !== 'undefined') {
-                            const mx = this.mapX + (p.x * this.mapScale);
-                            const my = this.mapY + (p.y * this.mapScale);
-                            
-                            // Clamp to map bounds just in case
-                            if(mx >= this.mapX && mx <= this.mapX + this.mapSize && 
-                               my >= this.mapY && my <= this.mapY + this.mapSize) {
-                                
-                                const isMe = (p.id === Net.myId);
-                                this.dots.fillStyle(isMe ? 0x00ff00 : 0xff0000, 1);
-                                this.dots.fillCircle(mx, my, isMe ? 4 : 3);
-                            }
-                        }
-                    });
-                }
-            }
-
-            class GameScene extends Phaser.Scene {
-                constructor() { super('Game'); }
-                create() {
-                    Net.gameOver = false;
-                    this.myLaps = 0;
-                    this.hasReachedCheckpoint = false; 
-
-                    if (!this.sound.get('bgm')) this.sound.play('bgm', { loop: true, volume: 0.4 });
-                    this.accelSfx = this.sound.add('accel', { loop: true, volume: 0.6 });
-
-                    document.getElementById('hud').classList.remove('hidden');
-                    document.getElementById('lap-counter').innerText = `LAP: 1/${LAPS_TO_WIN}`;
-                    document.getElementById('btn-quit').onclick = () => window.location.reload();
-
-                    this.track = this.add.image(0, 0, 'track_img').setOrigin(0);
-                    // Camera Zoom increased, but HUD Scene will stay fixed
-                    this.cameras.main.setZoom(1.7);
-                    this.cameras.main.setBounds(0, 0, this.track.width, this.track.height);
-
-                    createChainWalls(this, TRACK_POINTS_INNER, 10, false, 'inner_island');
-                    createChainWalls(this, TRACK_POINTS_OUTER, 20, true, 'outer_wall');
-
-                    // Sensors
-                    this.checkpointSensor = this.matter.add.rectangle(520, 230, 20, 100, { isSensor: true, isStatic: true, label: 'checkpoint' });
-                    this.finishSensor = this.matter.add.rectangle(350, 790, 20, 100, { isSensor: true, isStatic: true, label: 'finish' });
-
-                    this.playerData = {}; 
-                    
-                    if (Net.isSolo && !Net.myId) Net.myId = 'player_solo_' + Math.floor(Math.random()*9999);
-                    
-                    if (Net.isSolo && (!Net.players[Net.myId])) {
-                        Net.players[Net.myId] = { id: Net.myId, name: Net.playerName, carType: Net.carType, laps: 0 };
-                    }
-
-                    Object.values(Net.players).forEach((p, idx) => {
-                        p.x = 450 + (idx * 50); p.y = 790; p.angle = 0; p.laps = 0;
-                        this.spawn(p);
-                    });
-
-                    const localEntry = this.playerData[Net.myId];
-                    if (localEntry && localEntry.visual) {
-                        this.cameras.main.startFollow(localEntry.visual, true, 0.1, 0.1);
-                    }
-
-                    this.keys = this.input.keyboard.addKeys({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', w: 'W', a: 'A', s: 'S', d: 'D' });
-
-                    this.matter.world.on('collisionstart', (e) => {
-                        e.pairs.forEach(pair => {
-                            const labels = [pair.bodyA.label, pair.bodyB.label];
-                            if (labels.includes(Net.myId)) {
-                                if (labels.includes('checkpoint')) {
-                                    this.hasReachedCheckpoint = true;
-                                } else if (labels.includes('finish') && this.hasReachedCheckpoint) {
-                                    this.myLaps++;
-                                    this.hasReachedCheckpoint = false;
-                                    document.getElementById('lap-counter').innerText = `LAP: ${Math.min(this.myLaps + 1, LAPS_TO_WIN)}/${LAPS_TO_WIN}`;
-                                    if (this.myLaps >= LAPS_TO_WIN) this.showResult(Net.myId);
-                                }
-                            }
-                        });
-                    });
-
-                    eventBus.on('race-finished', (winnerId) => this.showResult(winnerId));
-                }
-
-                spawn(p) {
-                    const body = this.matter.add.rectangle(p.x, p.y, 20, 10, {
-                        frictionAir: 0.015, 
-                        mass: 1.2,        
-                        restitution: 0.1, 
-                        angularFriction: 0.8, // VERY HIGH rotation dampening on release
-                        label: p.id,
-                        chamfer: { radius: 3 }
-                    });
-                    this.matter.body.setAngle(body, 0); 
-                    
-                    const trail = this.add.particles(0, 0, 'car1', {
-                        scale: { start: 0.2, end: 0 }, alpha: { start: 0.4, end: 0 }, tint: 0x00bcd4, lifespan: 300, blendMode: 'ADD', frequency: 30
-                    });
-                    
-                    const visual = this.add.image(p.x, p.y, p.carType).setScale(0.38).setDepth(10);
-                    
-                    const hitboxDebug = this.add.graphics().setDepth(11).setAlpha(0.4);
-                    
-                    const text = this.add.text(0, 0, p.name || p.id.substr(0,4), { fontSize: '10px', fontStyle: 'bold', fill: '#fff', backgroundColor: '#000000cc' }).setOrigin(0.5).setDepth(100);
-                    
-                    this.playerData[p.id] = { body, visual, text, trail, hitboxDebug };
-                }
-
-                update() {
-                    if (Net.gameOver) return;
-                    
-                    const my = this.playerData[Net.myId];
-                    if (my) {
-                        const b = my.body;
-
-                        if (!Number.isFinite(b.position.x) || Math.abs(b.position.x) > 5000) {
-                            console.warn("Physics instability detected! Resetting car.");
-                            this.matter.body.setPosition(b, { x: 450, y: 790 });
-                            this.matter.body.setVelocity(b, { x: 0, y: 0 });
-                            this.matter.body.setAngle(b, 0);
-                        }
-                        
-                        // Sync speed for HUD
-                        Net.players[Net.myId].speed = b.speed;
-
-                        // --- SKILLFUL RACER PHYSICS CONSTANTS ---
-                        const BASE_THRUST = 0.085; 
-                        const BASE_MAX_SPEED = 40; 
-                        const BASE_TORQUE = 0.005; 
-
-                        const effectiveThrust = BASE_THRUST * GLOBAL_SPEED_FACTOR;
-                        const effectiveMaxSpeed = BASE_MAX_SPEED * GLOBAL_SPEED_FACTOR;
-                        const effectiveTorque = BASE_TORQUE * GLOBAL_SPEED_FACTOR;
-
-                        if (b.speed > effectiveMaxSpeed) {
-                            this.matter.body.setSpeed(b, effectiveMaxSpeed);
-                        }
-                        
-                        if (b.speed < 0.2) {
-                             this.matter.body.setVelocity(b, {x:0, y:0});
-                        }
-
-                        // VELOCITY PROJECTION (SMOOTHED)
-                        const vel = new Phaser.Math.Vector2(b.velocity.x, b.velocity.y);
-                        if (vel.length() > 0.1) {
-                            const angle = b.angle;
-                            const forward = new Phaser.Math.Vector2(Math.cos(angle), Math.sin(angle));
-                            const right = new Phaser.Math.Vector2(-Math.sin(angle), Math.cos(angle));
-
-                            const forwardSpeed = vel.dot(forward);
-                            const lateralSpeed = vel.dot(right);
-
-                            // SLIDE FACTOR: 0.35 retains some drift momentum so it doesn't snap
-                            const newLateralSpeed = lateralSpeed * 0.35; 
-
-                            const newVel = forward.scale(forwardSpeed).add(right.scale(newLateralSpeed));
-                            this.matter.body.setVelocity(b, newVel);
-                        }
-
-                        let throttling = false;
-                        if (this.keys.up.isDown || this.keys.w.isDown) {
-                            throttling = true;
-                            this.matter.applyForce(b, { x: Math.cos(b.angle) * effectiveThrust, y: Math.sin(b.angle) * effectiveThrust });
-                        } else if (this.keys.down.isDown || this.keys.s.isDown) {
-                            throttling = true;
-                            this.matter.applyForce(b, { x: -Math.cos(b.angle) * (effectiveThrust * 0.6), y: -Math.sin(b.angle) * (effectiveThrust * 0.6) });
-                        }
-                        
-                        // Steering with Active Stabilization on release
-                        let steerFactor = Math.min(b.speed / (effectiveMaxSpeed * 0.25), 1);
-                        steerFactor = 0.15 + (0.85 * steerFactor);
-                        const turnForce = effectiveTorque * steerFactor;
-
-                        let isTurning = false;
-                        if (this.keys.left.isDown || this.keys.a.isDown) {
-                            b.torque = -turnForce;
-                            isTurning = true;
-                        } else if (this.keys.right.isDown || this.keys.d.isDown) {
-                            b.torque = turnForce;
-                            isTurning = true;
-                        }
-
-                        // ACTIVE STABILIZATION: If not turning, kill rotation fast
-                        if (!isTurning) {
-                            b.torque = b.angularVelocity * -0.1; // Counter-torque
-                        }
-
-                        if (throttling && !this.accelSfx.isPlaying) this.accelSfx.play();
-                        else if (!throttling && this.accelSfx.isPlaying) this.accelSfx.stop();
-
-                        Net.players[Net.myId].x = b.position.x;
-                        Net.players[Net.myId].y = b.position.y;
-                        Net.players[Net.myId].angle = b.angle;
-                        Net.players[Net.myId].laps = this.myLaps;
-
-                        network.broadcast({ type: 'GAME_UPDATE', x: b.position.x, y: b.position.y, angle: b.angle, laps: this.myLaps });
-                        my.trail.emitParticleAt(b.position.x, b.position.y, throttling ? 2 : 0);
-                    }
-
-                    Object.keys(Net.players).forEach(id => {
-                        const obj = this.playerData[id];
-                        if (obj) {
-                            const d = Net.players[id];
-                            if (id !== Net.myId) {
-                                obj.visual.x = Phaser.Math.Linear(obj.visual.x, d.x || 0, 0.2);
-                                obj.visual.y = Phaser.Math.Linear(obj.visual.y, d.y || 0, 0.2);
-                                obj.visual.setAngle(Phaser.Math.RadToDeg(d.angle || 0) + 90);
-                            } else {
-                                obj.visual.x = obj.body.position.x;
-                                obj.visual.y = obj.body.position.y;
-                                obj.visual.setAngle(Phaser.Math.RadToDeg(obj.body.angle) + 90);
-                            }
-                            
-                            obj.text.setPosition(Math.round(obj.visual.x), Math.round(obj.visual.y - 30));
-                            
-                            obj.hitboxDebug.clear();
-                            obj.hitboxDebug.fillStyle(0x00ff00, 0.3);
-                            obj.hitboxDebug.beginPath();
-                            const verts = obj.body.vertices;
-                            obj.hitboxDebug.moveTo(verts[0].x, verts[0].y);
-                            for (let i = 1; i < verts.length; i++) {
-                                obj.hitboxDebug.lineTo(verts[i].x, verts[i].y);
-                            }
-                            obj.hitboxDebug.closePath();
-                            obj.hitboxDebug.fillPath();
-                        }
-                    });
-                }
-
-                showResult(winnerId) {
-                    if (Net.gameOver) return;
-                    Net.gameOver = true;
-                    this.accelSfx.stop();
-                    const ui = document.getElementById('ui-layer');
-                    ui.classList.remove('hidden');
-                    
-                    const isWinner = winnerId === Net.myId;
-                    document.getElementById('ui-content').innerHTML = `
-                        <h2 style="color:${isWinner ? '#FFD700' : '#00bcd4'};">${isWinner ? '🏁 VICTORY!' : '🏁 RACE END'}</h2>
-                        <p>${Net.players[winnerId]?.name || 'Racer'} wins!</p>
-                        <button onclick="window.location.reload()">Menu</button>
-                    `;
-                    document.getElementById('hud').classList.add('hidden');
-                    // Stop HUD scene to clear map
-                    this.scene.stop('HUD');
-                }
-            }
-
-            new Phaser.Game({
-                type: Phaser.AUTO, width: 950, height: 850, backgroundColor: '#050505', parent: 'game-container',
-                scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-                physics: { 
-                    default: 'matter', 
-                    matter: { 
-                        gravity: { x: 0, y: 0 }, 
-                        debug: false,
-                        positionIterations: 10,
-                        velocityIterations: 10
-                    } 
-                },
-                scene: [MenuScene, LobbyScene, GameScene, HUDScene]
+        // Copy Text Logic
+        function copyText(btn) {
+            const fullText = btn.parentElement.innerText.replace('Copy', '').trim();
+            navigator.clipboard.writeText(fullText).then(() => {
+                const original = btn.innerText;
+                btn.innerText = "COPIED!";
+                setTimeout(() => btn.innerText = original, 2000);
             });
         }
     </script>
